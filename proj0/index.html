@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="CS 180 Project 0: an exploration of perspective, focal length, and the center of projection."
+    >
+    <title>Project 0 · Becoming Friends with Your Camera</title>
+    <link rel="stylesheet" href="https://latex.vercel.app/style.min.css">
+    <link rel="stylesheet" href="../styles.css">
+  </head>
+  <body>
+    <a class="back-link no-print" href="../index.html">← CS 180 portfolio</a>
+
+    <header class="document-header">
+      <span class="section-kicker">Programming Project 0</span>
+      <h1>Becoming Friends with Your Camera</h1>
+      <p class="author">Bryan Li</p>
+      <p class="document-meta">CS 180/280A · Fall 2026 · September 2026</p>
+    </header>
+
+    <main>
+      <section class="abstract" aria-labelledby="abstract-heading">
+        <h2 id="abstract-heading">Abstract</h2>
+        <p>
+          For this project, I tested how camera position and focal length change perspective using
+          a portrait, a view of Wheeler Hall, and a dolly zoom. I shot everything on an iPhone 14 Pro
+          with automatic white balance and no flash.
+        </p>
+      </section>
+
+      <nav class="contents" aria-labelledby="contents-heading">
+        <h2 id="contents-heading">Contents</h2>
+        <ol>
+          <li><a href="#part-1">Selfie: The Wrong Way vs. the Right Way</a></li>
+          <li><a href="#part-2">Architectural Perspective Compression</a></li>
+          <li><a href="#part-3">The Dolly Zoom</a></li>
+          <li><a href="#reflection">Final Reflection</a></li>
+        </ol>
+      </nav>
+
+      <section class="report-section" id="part-1" aria-labelledby="part-1-heading">
+        <h2 id="part-1-heading">
+          <span class="section-kicker">Part 1</span>
+          Selfie: The Wrong Way vs. the Right Way
+        </h2>
+        <p>
+          I photographed my friend first from close range, then from several feet farther
+          away with a longer focal length. I matched the apparent size of the face as closely as I
+          could so that the change in perspective would be easy to compare.
+        </p>
+
+        <div class="photo-grid photo-grid--pair" role="group" aria-label="Portrait perspective comparison">
+          <figure class="photo-slot">
+            <div class="photo-canvas">
+              <img src="./images/part1-close.jpg" alt="An extreme close-up portrait in which my friend's face fills the frame and his nose appears prominent" decoding="async">
+            </div>
+            <figcaption>
+              <span class="caption-label">Figure 1a.</span>
+              Taken up close with a wide field of view. My friend's nose looks much larger relative
+              to the rest of his face, so the portrait feels noticeably distorted.
+            </figcaption>
+          </figure>
+
+          <figure class="photo-slot">
+            <div class="photo-canvas">
+              <img src="./images/part1-zoomed.jpg" alt="A stepped-back portrait of my friend whose facial proportions appear flatter and more natural" decoding="async">
+            </div>
+            <figcaption>
+              <span class="caption-label">Figure 1b.</span>
+              Taken from farther back and zoomed in to keep his face about the same size. His
+              features look flatter and more proportional than in Figure 1a.
+            </figcaption>
+          </figure>
+        </div>
+
+        <div class="scroll-wrapper">
+          <table class="capture-table">
+            <caption><span class="caption-label">Table 1.</span> Camera settings</caption>
+            <thead>
+              <tr>
+                <th scope="col">Shot</th>
+                <th scope="col">Lens</th>
+                <th scope="col">35&nbsp;mm equivalent</th>
+                <th scope="col">Aperture</th>
+                <th scope="col">Exposure</th>
+                <th scope="col">ISO</th>
+                <th scope="col">Digital zoom</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Close</th>
+                <td>2.22&nbsp;mm</td>
+                <td>24&nbsp;mm</td>
+                <td>f/2.2</td>
+                <td>1/60&nbsp;s</td>
+                <td>200</td>
+                <td>1.78×</td>
+              </tr>
+              <tr>
+                <th scope="row">Stepped back</th>
+                <td>9&nbsp;mm</td>
+                <td>135&nbsp;mm</td>
+                <td>f/2.8</td>
+                <td>1/60&nbsp;s</td>
+                <td>320</td>
+                <td>1.74×</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="observation">
+          <p>
+            <span class="observation-label">Observation.</span>
+            The easiest way for me to understand this phenomenon is to imagine rays running from
+            each facial feature to the camera. Up close, the rays from his nose, eyes, and ears fan
+            out at noticeably different angles, so small differences in depth become exaggerated.
+            After I stepped back, those rays were much closer to parallel, so the same depth differences
+            mattered less.
+          </p>
+        </div>
+      </section>
+
+      <section class="report-section" id="part-2" aria-labelledby="part-2-heading">
+        <h2 id="part-2-heading">
+          <span class="section-kicker">Part 2</span>
+          Architectural Perspective Compression
+        </h2>
+        <p>
+          For the architectural comparison, I began farther from Wheeler Hall with the camera
+          zoomed in. I then moved closer and widened the view while keeping Wheeler Hall roughly the
+          same size in the frame.
+        </p>
+
+        <div class="photo-grid photo-grid--pair" role="group" aria-label="Architectural perspective comparison">
+          <figure class="photo-slot">
+            <div class="photo-canvas">
+              <img src="./images/part2-zoomed.jpg" alt="A distant, zoomed view of Wheeler Hall whose row of columns appears relatively uniform in size" decoding="async">
+            </div>
+            <figcaption>
+              <span class="caption-label">Figure 2a.</span>
+              Taken from farther away and zoomed in. The columns look closer to the same height and
+              width across the image.
+            </figcaption>
+          </figure>
+
+          <figure class="photo-slot">
+            <div class="photo-canvas">
+              <img src="./images/part2-close.jpg" alt="A closer, wider view of Wheeler Hall whose columns become progressively smaller toward the right" decoding="async">
+            </div>
+            <figcaption>
+              <span class="caption-label">Figure 2b.</span>
+              Taken after walking closer and zooming out. The columns on the left look longer and
+              wider than those farther away on the right.
+            </figcaption>
+          </figure>
+        </div>
+
+        <div class="scroll-wrapper">
+          <table class="capture-table">
+            <caption><span class="caption-label">Table 2.</span> Camera settings</caption>
+            <thead>
+              <tr>
+                <th scope="col">Shot</th>
+                <th scope="col">Lens</th>
+                <th scope="col">35&nbsp;mm equivalent</th>
+                <th scope="col">Aperture</th>
+                <th scope="col">Exposure</th>
+                <th scope="col">ISO</th>
+                <th scope="col">Digital zoom</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Far and zoomed</th>
+                <td>9&nbsp;mm</td>
+                <td>103&nbsp;mm</td>
+                <td>f/2.8</td>
+                <td>1/182&nbsp;s</td>
+                <td>32</td>
+                <td>1.34×</td>
+              </tr>
+              <tr>
+                <th scope="row">Near and wide</th>
+                <td>6.86&nbsp;mm</td>
+                <td>48&nbsp;mm</td>
+                <td>f/1.78</td>
+                <td>1/880&nbsp;s</td>
+                <td>64</td>
+                <td>1×</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="observation">
+          <p>
+            <span class="observation-label">Observation.</span>
+            The same idea from Part 1 shows up in Wheeler Hall. From farther away, the rays from the
+            columns to the camera are closer to parallel, so differences in distance have less
+            effect on their apparent size. From the closer viewpoint, the rays spread out more and
+            the sense of depth becomes much stronger.
+          </p>
+        </div>
+
+      </section>
+
+      <section class="report-section" id="part-3" aria-labelledby="part-3-heading">
+        <h2 id="part-3-heading">
+          <span class="section-kicker">Part 3</span>
+          The Dolly Zoom
+        </h2>
+        <p>
+          I took eight photos while stepping backward and zooming from 24&nbsp;mm to 164&nbsp;mm full-frame
+          equivalent. I tried to keep my friend roughly the same size so the kitchen would shift
+          around him.
+        </p>
+
+        <figure class="photo-slot">
+          <div class="photo-canvas">
+            <img src="./images/dolly-zoom.gif" alt="An animated dolly zoom of my friend eating at a kitchen counter while the view moves from wide angle to telephoto and back" decoding="async">
+          </div>
+          <figcaption>
+            <span class="caption-label">Figure 3.</span>
+            The frames play forward and then backward, which creates a continuous loop without an
+            abrupt jump from the most zoomed-in image to the widest one.
+          </figcaption>
+        </figure>
+
+        <div class="scroll-wrapper">
+          <table class="capture-table">
+            <caption><span class="caption-label">Table 3.</span> Dolly-zoom camera settings</caption>
+          <thead>
+            <tr>
+              <th scope="col">Frame</th>
+              <th scope="col">Source</th>
+              <th scope="col">Lens</th>
+              <th scope="col">35&nbsp;mm equivalent</th>
+              <th scope="col">Aperture</th>
+              <th scope="col">Exposure</th>
+              <th scope="col">ISO</th>
+              <th scope="col">Digital zoom</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">1</th>
+              <td>IMG_8134</td>
+              <td>6.86&nbsp;mm</td>
+              <td>24&nbsp;mm</td>
+              <td>f/1.78</td>
+              <td>1/40&nbsp;s</td>
+              <td>1000</td>
+              <td>1×</td>
+            </tr>
+            <tr>
+              <th scope="row">2</th>
+              <td>IMG_8135</td>
+              <td>6.86&nbsp;mm</td>
+              <td>41&nbsp;mm</td>
+              <td>f/1.78</td>
+              <td>1/40&nbsp;s</td>
+              <td>800</td>
+              <td>1.70×</td>
+            </tr>
+            <tr>
+              <th scope="row">3</th>
+              <td>IMG_8136</td>
+              <td>6.86&nbsp;mm</td>
+              <td>60&nbsp;mm</td>
+              <td>f/1.78</td>
+              <td>1/30&nbsp;s</td>
+              <td>500</td>
+              <td>1.24×</td>
+            </tr>
+            <tr>
+              <th scope="row">4</th>
+              <td>IMG_8137</td>
+              <td>9&nbsp;mm</td>
+              <td>83&nbsp;mm</td>
+              <td>f/2.8</td>
+              <td>1/30&nbsp;s</td>
+              <td>1250</td>
+              <td>1.08×</td>
+            </tr>
+            <tr>
+              <th scope="row">5</th>
+              <td>IMG_8138</td>
+              <td>9&nbsp;mm</td>
+              <td>105&nbsp;mm</td>
+              <td>f/2.8</td>
+              <td>1/30&nbsp;s</td>
+              <td>1250</td>
+              <td>1.36×</td>
+            </tr>
+            <tr>
+              <th scope="row">6</th>
+              <td>IMG_8139</td>
+              <td>9&nbsp;mm</td>
+              <td>136&nbsp;mm</td>
+              <td>f/2.8</td>
+              <td>1/30&nbsp;s</td>
+              <td>1250</td>
+              <td>1.76×</td>
+            </tr>
+            <tr>
+              <th scope="row">7</th>
+              <td>IMG_8140</td>
+              <td>9&nbsp;mm</td>
+              <td>164&nbsp;mm</td>
+              <td>f/2.8</td>
+              <td>1/30&nbsp;s</td>
+              <td>1250</td>
+              <td>2.12×</td>
+            </tr>
+            <tr>
+              <th scope="row">8</th>
+              <td>IMG_8141</td>
+              <td>9&nbsp;mm</td>
+              <td>164&nbsp;mm</td>
+              <td>f/2.8</td>
+              <td>1/30&nbsp;s</td>
+              <td>1600</td>
+              <td>2.12×</td>
+            </tr>
+          </tbody>
+          </table>
+        </div>
+
+        <div class="observation">
+          <p>
+            <span class="observation-label">Observation.</span>
+            The effect did not come out as well as I had hoped. Since our house is not very large,
+            my friend was pretty close to the background and I could only move back a short
+            distance. That made the background shift less dramatic than it would have been in a
+            larger space. His pose also changes slightly because he kept eating between frames.
+          </p>
+        </div>
+      </section>
+
+      <section class="report-section" id="reflection" aria-labelledby="reflection-heading">
+        <h2 id="reflection-heading">Final Reflection</h2>
+        <div class="observation">
+          <p>
+            I already knew these effects existed in theory, but it was super cool to see such a
+            clean ablation side by side. Looking at each pair made the perspective changes much
+            easier to notice. This project also gave me a better sense of how hard it is to take
+            good, controlled photos—even these simple comparisons required careful framing,
+            distance, timing, and consistency between shots.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="document-footer">
+      <p>CS 180/280A · Project 0 · Fall 2026</p>
+    </footer>
+  </body>
+</html>

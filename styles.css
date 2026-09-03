@@ -1,0 +1,291 @@
+:root {
+  --paper: #fbfaf7;
+  --paper-deep: #f2efe7;
+  --ink: #24211f;
+  --muted-ink: #68625d;
+  --accent: #a02c2c;
+  --accent-dark: #771f1f;
+  --rule: #aaa29a;
+  --measure: 80ch;
+  --section-space: 3.75rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 1.5rem;
+}
+
+body {
+  width: min(var(--measure), calc(100% - 2rem));
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 3.75rem 0 5rem;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: "Latin Modern Roman", "Computer Modern", Georgia, "Times New Roman", serif;
+  font-size: 1rem;
+  line-height: 1.65;
+  hyphens: none;
+  -webkit-hyphens: none;
+}
+
+a {
+  color: var(--accent);
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.15em;
+}
+
+a:hover {
+  color: var(--accent-dark);
+}
+
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.document-header {
+  margin-bottom: 3.25rem;
+  text-align: center;
+}
+
+.document-header h1 {
+  max-width: 18ch;
+  margin: 0 auto 1.6rem;
+  font-size: clamp(2.15rem, 7vw, 3.15rem);
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+}
+
+.author {
+  margin: 0;
+  color: var(--ink);
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+}
+
+.document-meta {
+  margin: 0.2rem 0 0;
+  color: var(--muted-ink);
+  font-size: 0.92rem;
+}
+
+.abstract {
+  max-width: 66ch;
+  margin: 0 auto 3.25rem;
+  text-align: center;
+}
+
+.abstract h2 {
+  margin-bottom: 0.35rem;
+  font-size: 1.12rem;
+}
+
+.abstract p {
+  margin-top: 0;
+}
+
+.contents {
+  margin: 2.5rem 0 var(--section-space);
+}
+
+.contents h2 {
+  margin-bottom: 0.75rem;
+}
+
+.contents ol {
+  margin: 0;
+  padding-left: 2.25rem;
+}
+
+.contents li {
+  padding-left: 0.4rem;
+}
+
+.report-section {
+  margin-top: var(--section-space);
+}
+
+.report-section > h2 {
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.section-kicker {
+  display: block;
+  margin-bottom: 0.15rem;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+  font-variant: small-caps;
+  font-weight: normal;
+  letter-spacing: 0.11em;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+figure {
+  min-width: 0;
+  margin: 0;
+  break-inside: avoid;
+}
+
+.photo-canvas {
+  overflow: hidden;
+  border: 1px solid var(--ink);
+  background: var(--paper-deep);
+}
+
+.photo-canvas img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+figcaption {
+  margin-top: 0.65rem;
+  color: var(--muted-ink);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.photo-slot figcaption::before,
+.capture-table caption::before {
+  content: none !important;
+}
+
+.caption-label {
+  color: var(--ink);
+  font-variant: small-caps;
+  font-style: normal;
+  font-weight: bold;
+  letter-spacing: 0.03em;
+}
+
+.observation {
+  margin: 2rem 0;
+  padding: 0.15rem 0 0.15rem 1.15rem;
+  border-left: 2px solid var(--rule);
+}
+
+.observation p {
+  margin: 0;
+}
+
+.observation-label {
+  font-style: italic;
+  font-weight: bold;
+}
+
+.capture-table {
+  width: 100%;
+  margin: 1.5rem 0 2rem;
+  font-size: 0.92rem;
+}
+
+.capture-table caption {
+  margin-bottom: 0.55rem;
+  font-style: italic;
+}
+
+.capture-table th,
+.capture-table td {
+  padding: 0.45rem 0.55rem;
+}
+
+.scroll-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.project-link {
+  display: block;
+  margin: 2rem 0;
+  padding: 1rem 0;
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  font-size: 1.15rem;
+}
+
+.document-footer {
+  margin-top: 5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+  color: var(--muted-ink);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.back-link {
+  position: absolute;
+  top: 1.25rem;
+  left: max(1rem, calc(50% - 40ch));
+  font-size: 0.85rem;
+}
+
+@media (min-width: 48rem) {
+  .photo-grid--pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 40rem) {
+  body {
+    padding-top: 4.5rem;
+  }
+
+  .back-link {
+    left: 1rem;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+@media print {
+  :root {
+    --paper: #fff;
+    --paper-deep: #fff;
+    --ink: #000;
+  }
+
+  @page {
+    margin: 0.65in 0.7in;
+  }
+
+  body {
+    width: auto;
+    max-width: none;
+    padding: 0;
+    background: #fff;
+    font-size: 10.5pt;
+  }
+
+  .no-print,
+  .back-link {
+    display: none !important;
+  }
+
+  a {
+    color: inherit;
+  }
+
+  .report-section {
+    break-before: page;
+  }
+
+}

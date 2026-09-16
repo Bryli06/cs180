@@ -1,17 +1,17 @@
-# CS 180 portfolio
+# CS180 portfolio
 
-Static GitHub Pages portfolio for UC Berkeley CS 180/280A.
+Open [Project 0](proj0/index.html) or [Project 1](proj1/index.html) in Brave.
+These are ordinary static HTML pages with local image files.
 
-## Preview locally
-
-From this directory, run:
+The private Project 1 code is in `lab/`. Its 17 original scans are already local:
 
 ```sh
-python3 -m http.server 8000
+cd lab
+uv run main.py
 ```
 
-Then open <http://localhost:8000/>. Project 0 is available at <http://localhost:8000/proj0/>.
+The script saves color JPEGs to `lab/output/pyramid-ncc/` and prints the offsets.
+See [the short code README](lab/README.md) for single-scale and MSE runs.
 
-## Publish
-
-Commit the HTML, CSS, and optimized files in `proj0/images/`, then publish the repository with GitHub Pages. Before submitting, open the public Project 0 URL and print it to PDF with browser headers and footers enabled.
+Only the static portfolio belongs on GitHub Pages. Keep `lab/` private, and omit
+original image files from the course's code submission.

@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Reconstructing Prokudin-Gorskii's color photographs: a first-principles explanation of translation, normalized correlation, and binomial image pyramids.">
+    <title>Project 1 · Colorizing Prokudin-Gorskii’s Photographs</title>
+    <link rel="stylesheet" href="https://latex.vercel.app/style.min.css">
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="back-link no-print" href="../index.html">← CS 180 portfolio</a>
+    <header class="document-header">
+      <span class="section-kicker">Programming Project 1</span>
+      <h1>Colorizing Prokudin-Gorskii’s Photographs</h1>
+      <p class="author">Bryan Li</p>
+      <p class="document-meta">CS 180/280A · Fall 2026</p>
+    </header>
+
+    <main>
+      <section class="abstract" aria-labelledby="abstract-heading">
+        <h2 id="abstract-heading">Abstract</h2>
+        <p>
+          I reconstructed color photographs by aligning three filtered exposures of each scene.
+          I compared mean squared error and normalized cross-correlation for single-scale alignment,
+          then used a binomial image pyramid to align the full-resolution scans efficiently.
+        </p>
+      </section>
+
+<figure class="photo-slot"><div class="photo-canvas"><img src="./images/hero.jpg" width="1800" height="1527" alt="Reconstructed color photograph: Icon" fetchpriority="high" decoding="async"></div><figcaption><span class="caption-label">Icon.</span> Reconstructed from three filtered exposures. <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+
+      <nav class="contents no-print" aria-labelledby="contents-heading">
+        <h2 id="contents-heading">Contents</h2>
+        <ol>
+          <li><a href="#three-exposures">Three exposures, one scene</a></li>
+          <li><a href="#similarity">Finding the right shifts</a></li>
+          <li><a href="#binomial">Making images smaller</a></li>
+          <li><a href="#pyramid">Finding shifts efficiently</a></li>
+          <li><a href="#emir-analysis">Why Emir is misaligned</a></li>
+          <li><a href="#additional">Three more archival photographs</a></li>
+          <li><a href="#reproducibility">Offsets and timing</a></li>
+          <li><a href="#references">References</a></li>
+        </ol>
+      </nav>
+
+      <section class="report-section" id="three-exposures" aria-labelledby="three-heading">
+        <h2 id="three-heading">1. Three exposures, one scene</h2>
+        <p>
+          In the early twentieth century, Sergei Prokudin-Gorskii photographed scenes through blue,
+          green, and red filters in succession.
+          The scans used here are preserved by the
+          <a href="https://www.loc.gov/exhibits/empire/making.html">Library of Congress</a>.
+        </p>
+        <p>
+          In the supplied scans, the three exposures are stacked vertically: blue at the top,
+          green in the middle, red at the bottom. I divided each scan into three equal-height pieces.
+          Their values were interpreted as the blue, green, and red output channels.
+          Combining them without alignment creates colored fringes along edges.
+        </p>
+
+<div class="photo-grid photo-grid--triple"><figure class="photo-slot"><div class="photo-canvas"><img src="./images/channel-blue.jpg" width="390" height="341" alt="Grayscale blue-filtered exposure of Cathedral" loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Blue filter.</span></figcaption></figure><figure class="photo-slot"><div class="photo-canvas"><img src="./images/channel-green.jpg" width="390" height="341" alt="Grayscale green-filtered exposure of Cathedral" loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Green filter.</span></figcaption></figure><figure class="photo-slot"><div class="photo-canvas"><img src="./images/channel-red.jpg" width="390" height="341" alt="Grayscale red-filtered exposure of Cathedral" loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Red filter.</span></figcaption></figure></div><figure class="photo-slot"><div class="photo-canvas"><img src="./images/unaligned.jpg" width="390" height="341" alt="Unaligned RGB stack of Cathedral, showing colored fringes at boundaries" loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Before alignment.</span> Colored fringes appear where the exposures do not line up.</figcaption></figure>
+
+        <p>
+          The task is now to align the exposures horizontally and vertically, keeping blue
+          fixed and shifting green and red to match it.
+        </p>
+      </section>
+
+      <section class="report-section" id="similarity" aria-labelledby="similarity-heading">
+        <h2 id="similarity-heading">2. Finding the right shifts</h2>
+        <h3>The naive method: exhaustive search</h3>
+        <p>
+          The naive approach tests every integer shift in a window such as [−15, 15]² and keeps
+          the best-scoring alignment. This gives 961 candidates per channel. I compare candidates
+          using either mean squared error or normalized cross-correlation.
+        </p>
+        <h3>Pixel differences</h3>
+        <p>
+          For vectorized patches <var>A</var>, <var>B</var> ∈ ℝ<sup>n</sup>, minimize
+          the mean squared error:
+        </p>
+        <div class="equation" role="math" aria-label="Mean squared error equals the sum of squared corresponding differences divided by n">
+          MSE(<var>A</var>, <var>B</var>) =
+          <span class="fraction"><span>∑<sub>i = 1</sub><sup>n</sup> (<var>A</var><sub>i</sub> − <var>B</var><sub>i</sub>)<sup>2</sup></span><span><var>n</var></span></span>.
+        </div>
+        <h3>Account for brightness differences</h3>
+        <p>
+          A red roof may appear bright through the red filter and dark through the blue one.
+          To compare the spatial pattern while discounting additive brightness offsets and
+          positive intensity scaling, center and normalize both patches:
+        </p>
+        <div class="equation equation--stack" role="math" aria-label="u and v are A and B after subtracting their means and dividing by their L2 norms">
+          <span><var>u</var> =
+          <span class="fraction"><span><var>A</var> − <var>μ</var><sub>A</sub></span><span>‖<var>A</var> − <var>μ</var><sub>A</sub>‖<sub>2</sub></span></span></span>
+          <span><var>v</var> =
+          <span class="fraction"><span><var>B</var> − <var>μ</var><sub>B</sub></span><span>‖<var>B</var> − <var>μ</var><sub>B</sub>‖<sub>2</sub></span></span></span>
+        </div>
+        <p>
+          Here <var>μ</var><sub>A</sub> and <var>μ</var><sub>B</sub> are the patch means.
+        </p>
+        <p>
+          Now, when we calculate the squared distance between the normalized patches, we get:
+        </p>
+        <div class="equation equation--stack" role="math" aria-label="The squared distance between u and v equals u squared length plus v squared length minus twice their dot product, which equals two minus twice NCC">
+          <span>‖<var>u</var> − <var>v</var>‖<sup>2</sup> = ‖<var>u</var>‖<sup>2</sup> + ‖<var>v</var>‖<sup>2</sup> − 2(<var>u</var> · <var>v</var>)</span>
+          <span>= 2 − 2 NCC(<var>A</var>, <var>B</var>).</span>
+        </div>
+        <p>
+          Therefore, maximizing NCC minimizes Euclidean distance between the normalized patches.
+        </p>
+
+        <h3>Single-scale results</h3>
+
+<div class="results-grid"><figure class="photo-slot" id="result-single-ncc-cathedral"><div class="photo-canvas"><img src="./images/single-ncc-cathedral.jpg" width="387" height="329" alt="A cathedral with gold domes rises beyond a field and a winding dirt path." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Cathedral.</span> <span class="result-meta">G (x, y) = (2, 5); R (x, y) = (3, 12). Alignment 0.26 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-single-ncc-monastery"><div class="photo-canvas"><img src="./images/single-ncc-monastery.jpg" width="389" height="335" alt="A monastery with pale domes stands across a river beside a long walkway." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Monastery.</span> <span class="result-meta">G (x, y) = (2, -3); R (x, y) = (2, 3). Alignment 0.26 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-single-ncc-tobolsk"><div class="photo-canvas"><img src="./images/single-ncc-tobolsk.jpg" width="393" height="335" alt="Rooftops and a riverfront extend toward a distant town skyline." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Tobolsk.</span> <span class="result-meta">G (x, y) = (3, 3); R (x, y) = (3, 6). Alignment 0.28 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure></div><div class="scroll-wrapper"><table class="capture-table"><caption>Single-scale MSE and NCC give the same shifts. Each cell lists green / red offsets (x, y).</caption><thead><tr><th scope="col">Image</th><th scope="col">MSE (L2-equivalent)</th><th scope="col">NCC</th></tr></thead><tbody><tr><th scope="row">Cathedral</th><td>(2, 5) / (3, 12)</td><td>(2, 5) / (3, 12)</td></tr><tr><th scope="row">Monastery</th><td>(2, -3) / (2, 3)</td><td>(2, -3) / (2, 3)</td></tr><tr><th scope="row">Tobolsk</th><td>(3, 3) / (3, 6)</td><td>(3, 3) / (3, 6)</td></tr></tbody></table></div>
+
+      </section>
+
+      <section class="report-section" id="binomial" aria-labelledby="binomial-heading">
+        <h2 id="binomial-heading">3. Making images smaller</h2>
+        <p>
+          Large scans can require shifts much greater than 15 pixels. Reducing the image also
+          reduces the displacement. But consider a row alternating black and white: keeping
+          every second pixel produces either all black or all white. This is
+          <a href="https://visionbook.mit.edu/upsamplig_downsampling_2.html">aliasing</a>.
+          We smooth the image before reducing it to suppress this fine detail.
+        </p>
+        <figure class="sampling-figure">
+          <svg viewBox="0 0 640 164" role="img" aria-labelledby="sampling-title sampling-desc">
+            <title id="sampling-title">Skipping pixels changes alternating stripes into a constant</title>
+            <desc id="sampling-desc">An eight-pixel row alternates dark and light. Keeping positions zero, two, four, and six gives four dark pixels. Averaging locally before reduction gives a middle-gray result away from boundaries.</desc>
+            <text x="0" y="25">Original</text>
+            <g transform="translate(260, 0)" stroke="#24211f" stroke-width="1">
+              <path fill="#24211f" d="M0 0h40v40H0z M80 0h40v40H80z M160 0h40v40H160z M240 0h40v40H240z"/>
+              <path fill="#fbfaf7" d="M40 0h40v40H40z M120 0h40v40H120z M200 0h40v40H200z M280 0h40v40H280z"/>
+            </g>
+            <text x="0" y="85">Every other pixel</text>
+            <path fill="#24211f" stroke="#fbfaf7" d="M260 60h40v40h-40z M300 60h40v40h-40z M340 60h40v40h-40z M380 60h40v40h-40z"/>
+            <text x="0" y="145">Average first</text>
+            <path fill="#8f8c88" stroke="#24211f" d="M260 120h40v40h-40z M300 120h40v40h-40z M340 120h40v40h-40z M380 120h40v40h-40z"/>
+          </svg>
+          <figcaption>Averaging before subsampling preserves the stripes’ average intensity.</figcaption>
+        </figure>
+        <h3>A three-pixel average</h3>
+        <p>
+          Start with a symmetric three-pixel filter [<var>a</var>, <var>b</var>, <var>a</var>]:
+        </p>
+        <ol class="derivation-steps">
+          <li><strong>Keep a constant region unchanged.</strong> The weights must sum to one, so 2<var>a</var> + <var>b</var> = 1.</li>
+          <li><strong>Cancel the alternating pattern.</strong> Around a −1 center with +1 neighbors, the output is 2<var>a</var> − <var>b</var>. Set this to zero.</li>
+        </ol>
+        <p>
+          These constraints give <var>a</var> = ¼ and <var>b</var> = ½:
+        </p>
+        <div class="equation" role="math" aria-label="q equals one quarter times the kernel one, two, one">
+          <var>q</var> = ¼ [1, 2, 1].
+        </div>
+        <h3>A five-pixel filter</h3>
+        <p>
+          Canceling the alternating pattern does not remove all detail that can alias.
+          Applying the average twice gives stronger smoothing:
+        </p>
+        <div class="equation" role="math" aria-label="h equals q convolved with q, which equals one sixteenth times one, four, six, four, one">
+          <var>h</var> = <var>q</var> * <var>q</var> = ¹⁄₁₆ [1, 4, 6, 4, 1].
+        </div>
+        <p>
+          This <a href="https://visionbook.mit.edu/blurring_2.html#binomial-filters">binomial kernel</a>
+          is symmetric and sums to one. I use it at each pyramid level. More smoothing would
+          suppress fine patterns further, but also blur features needed for alignment.
+          I chose five weights without comparing other filter lengths.
+        </p>
+      </section>
+
+      <section class="report-section" id="pyramid" aria-labelledby="pyramid-heading">
+        <h2 id="pyramid-heading">4. Finding shifts efficiently</h2>
+        <p>
+          Repeatedly blur and halve the dimensions. This stack of progressively smaller images
+          is an <strong>image pyramid</strong>. A 96-pixel displacement becomes 48, then 24, then
+          12 pixels after three reductions. Therefore, a small search
+          can locate a large displacement in the original scan.
+        </p>
+        <ol class="derivation-steps">
+          <li><strong>Start small.</strong> Search a window of candidate shifts in the smallest pair of images.</li>
+          <li><strong>Convert the coordinates.</strong> Double the winning horizontal and vertical shifts when moving to the next larger level.</li>
+          <li><strong>Refine locally.</strong> Search small corrections around that doubled estimate. Repeat until reaching the original image.</li>
+        </ol>
+        <p>
+          A coarse pixel at (<var>x</var>, <var>y</var>) comes from (2<var>x</var>, 2<var>y</var>)
+          at the next finer level, so both shifts double. The local search corrects for rounding
+          and details lost during smoothing.
+        </p>
+
+<p>The baseline reconstructions use raw-pixel NCC, a 10% scoring margin, a coarse target of 256 pixels on the longer side, an initial ±15-pixel search, and ±4-pixel corrections. Alignment uses the full-resolution scans; the images below are resized for display.</p><div class="results-grid"><figure class="photo-slot" id="result-pyramid-ncc-cathedral"><div class="photo-canvas"><img src="./images/pyramid-ncc-cathedral.jpg" width="387" height="329" alt="A cathedral with gold domes rises beyond a field and a winding dirt path." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Cathedral.</span> <span class="result-meta">G (x, y) = (2, 5); R (x, y) = (3, 12). Alignment 0.11 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-church"><div class="photo-canvas"><img src="./images/pyramid-ncc-church.jpg" width="1600" height="1387" alt="A white church stands beside still water beneath a broad cloudy sky." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Church.</span> <span class="result-meta">G (x, y) = (4, 25); R (x, y) = (-4, 58). Alignment 4.10 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-emir"><div class="photo-canvas"><img src="./images/pyramid-ncc-emir.jpg" width="1600" height="1363" alt="A seated man in an ornate patterned robe and white turban poses in a doorway." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Emir.</span> <span class="result-meta">G (x, y) = (24, 49); R (x, y) = (57, 105). Alignment 4.40 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.<br>Red/cyan fringes remain around the robe and face. <a href="#emir-analysis">Failure analysis</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-harvesters"><div class="photo-canvas"><img src="./images/pyramid-ncc-harvesters.jpg" width="1600" height="1350" alt="A group of people with baskets stands at the edge of a cultivated hillside." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Harvesters.</span> <span class="result-meta">G (x, y) = (17, 60); R (x, y) = (14, 124). Alignment 4.12 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-icon"><div class="photo-canvas"><img src="./images/pyramid-ncc-icon.jpg" width="1600" height="1358" alt="An ornate gilded church interior contains religious icons, chandeliers, and a low railing." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Icon.</span> <span class="result-meta">G (x, y) = (17, 41); R (x, y) = (23, 89). Alignment 4.11 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-ilemselga"><div class="photo-canvas"><img src="./images/pyramid-ncc-ilemselga.jpg" width="1600" height="1326" alt="A small wooden church with a pointed bell tower stands beneath a clear blue sky." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Ilemselga.</span> <span class="result-meta">G (x, y) = (7, 40); R (x, y) = (11, 130). Alignment 4.52 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-melons"><div class="photo-canvas"><img src="./images/pyramid-ncc-melons.jpg" width="1600" height="1304" alt="A wooden produce stall displays hanging melons beneath a weathered roof." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Melons.</span> <span class="result-meta">G (x, y) = (11, 82); R (x, y) = (13, 179). Alignment 4.12 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-monastery"><div class="photo-canvas"><img src="./images/pyramid-ncc-monastery.jpg" width="389" height="335" alt="A monastery with pale domes stands across a river beside a long walkway." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Monastery.</span> <span class="result-meta">G (x, y) = (2, -3); R (x, y) = (2, 3). Alignment 0.13 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-religous_painting"><div class="photo-canvas"><img src="./images/pyramid-ncc-religous_painting.jpg" width="1600" height="1339" alt="A framed religious painting with a row of figures rests outside a building." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Religious painting.</span> <span class="result-meta">G (x, y) = (3, 28); R (x, y) = (7, 68). Alignment 5.01 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-self_portrait"><div class="photo-canvas"><img src="./images/pyramid-ncc-self_portrait.jpg" width="1600" height="1304" alt="A man sits on rocks beside a stream in a wooded landscape." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Self portrait.</span> <span class="result-meta">G (x, y) = (29, 79); R (x, y) = (37, 176). Alignment 4.43 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-siren"><div class="photo-canvas"><img src="./images/pyramid-ncc-siren.jpg" width="1600" height="1331" alt="A flowering lilac bush fills the foreground of a garden." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Siren.</span> <span class="result-meta">G (x, y) = (-6, 49); R (x, y) = (-25, 96). Alignment 5.06 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-three_generations"><div class="photo-canvas"><img src="./images/pyramid-ncc-three_generations.jpg" width="1600" height="1339" alt="Three men wearing dark coats stand beside a wooden railing." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Three generations.</span> <span class="result-meta">G (x, y) = (14, 53); R (x, y) = (11, 112). Alignment 3.84 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-tobolsk"><div class="photo-canvas"><img src="./images/pyramid-ncc-tobolsk.jpg" width="393" height="335" alt="Rooftops and a riverfront extend toward a distant town skyline." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Tobolsk.</span> <span class="result-meta">G (x, y) = (3, 3); R (x, y) = (3, 6). Alignment 0.13 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-wharf"><div class="photo-canvas"><img src="./images/pyramid-ncc-wharf.jpg" width="1600" height="1350" alt="A wooden wharf and boats line a quiet riverbank." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Wharf.</span> <span class="result-meta">G (x, y) = (-7, 15); R (x, y) = (-16, 83). Alignment 4.73 s.</span> <a href="https://drive.google.com/file/d/1gJT5EcsANLwNVEhswTKQ3sR81wTEF0tu/view?usp=sharing">Source</a>.</figcaption></figure></div>
+
+      </section>
+
+      <section class="report-section" id="emir-analysis" aria-labelledby="emir-heading">
+        <h2 id="emir-heading">5. Why Emir is misaligned</h2>
+        <p>
+          In the <a href="#result-pyramid-ncc-emir">raw-intensity reconstruction of Emir</a>, red and cyan edges
+          remain separated around the face, turban, and robe. The red exposure has not lined up
+          with the other two, even though the large displacement has been corrected.
+        </p>
+        <p>
+          NCC removes a global brightness offset and scale. If corresponding patches satisfy
+          <var>R</var> = <var>aB</var> + <var>b</var>, with <var>a</var> &gt; 0,
+          subtracting their means and normalizing makes them identical. Different color filters,
+          however, change the relative brightness of different materials. The blue robe, skin,
+          white turban, and background need not share one scale and offset. Normalization cannot
+          remove these differences, so a shift that improves raw-pixel correlation can still
+          leave corresponding edges misaligned.
+        </p>
+        <p>
+          I checked whether the refinement window was too small by widening it from ±4 to ±8
+          pixels while keeping the other settings fixed. Both runs returned the same red shift,
+          (x, y) = (57, 105), and the same visible fringes. This points to the red–blue intensity
+          comparison as a likely source of the error. The pyramid speeds up the search, but it
+          uses the same brightness comparison at every level.
+        </p>
+
+        <h3 id="edge-alignment">Aligning edges</h3>
+        <p>
+          The robe may be bright in one exposure and dark in another, but its outline still
+          traces the same shape. This suggests matching where brightness changes sharply.
+          Gradient magnitude is small in nearly uniform regions and large at boundaries,
+          turning each exposure into a map of edge strength.
+        </p>
+        <p>
+          Since differentiation also emphasizes pixel-scale noise, I first smoothed each
+          pyramid level with the same binomial filter, then computed its gradient magnitude:
+        </p>
+        <div class="equation" role="math" aria-label="Edge strength is the magnitude of the gradient of the blurred image">
+          <var>E</var>(<var>I</var>) = ‖∇(blur(<var>I</var>))‖<sub>2</sub>.
+        </div>
+        <p>
+          The derivatives use <a href="https://numpy.org/doc/stable/reference/generated/numpy.gradient.html">finite differences</a>.
+          Taking the magnitude makes a dark-to-light boundary and a light-to-dark boundary
+          comparable. For a global brightness change, <var>E</var>(<var>aI</var> + <var>b</var>) =
+          |<var>a</var>| <var>E</var>(<var>I</var>), so even a contrast reversal preserves edge strength
+          up to scale. I then applied the same NCC search to these edge images and reconstructed
+          color from the original samples.
+        </p>
+        <div class="photo-grid photo-grid--pair">
+          <figure class="photo-slot">
+            <div class="photo-canvas">
+              <img src="./images/emir-intensity-detail.jpg" width="800" height="800"
+                   alt="Emir's face and white turban with separated red and cyan outlines after intensity alignment"
+                   loading="lazy" decoding="async">
+            </div>
+            <figcaption><span class="caption-label">Intensity NCC.</span> Red shift (57, 105).</figcaption>
+          </figure>
+          <figure class="photo-slot">
+            <div class="photo-canvas">
+              <img src="./images/emir-edge-detail.jpg" width="800" height="800"
+                   alt="The same region of Emir with the prominent color doubling removed by edge alignment"
+                   loading="lazy" decoding="async">
+            </div>
+            <figcaption><span class="caption-label">Edge NCC.</span> Red shift (40, 107).
+              <a href="./images/emir-edge.jpg">Full reconstruction</a>.</figcaption>
+          </figure>
+        </div>
+        <p>
+          Both crops show the same 800 × 800 region in blue coordinates. Edge alignment changes
+          Emir's green shift to (23, 49) and red shift to (40, 107), removing the prominent
+          red/cyan doubling around the face and turban. I ran the same edge method on all 17 scans;
+          shifts in the other 16 changed by at most three pixels per axis. No new large
+          misalignments appeared, though the religious painting shows slightly stronger local
+          color fringes.
+        </p>
+      </section>
+
+      <section class="report-section" id="additional" aria-labelledby="additional-heading">
+        <h2 id="additional-heading">6. Three more archival photographs</h2>
+        <p>
+          These three Library of Congress scans use the same algorithm and settings.
+        </p>
+
+<div class="results-grid"><figure class="photo-slot" id="result-pyramid-ncc-head_study"><div class="photo-canvas"><img src="./images/pyramid-ncc-head_study.jpg" width="1600" height="1321" alt="A seated woman with long hair rests one arm on a cushioned chair against a plain backdrop." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Head study.</span> <span class="result-meta">G (x, y) = (9, 55); R (x, y) = (11, 117). Alignment 5.48 s.</span> <a href="https://www.loc.gov/pictures/item/2018679082/">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-scientific_laboratory"><div class="photo-canvas"><img src="./images/pyramid-ncc-scientific_laboratory.jpg" width="1600" height="1353" alt="A laboratory interior with glassware on benches, hanging lamps, a wall cabinet, and a clock." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">Scientific laboratory.</span> <span class="result-meta">G (x, y) = (47, 52); R (x, y) = (77, 113). Alignment 6.08 s.</span> <a href="https://www.loc.gov/pictures/item/2018681234/">Source</a>.</figcaption></figure>
+<figure class="photo-slot" id="result-pyramid-ncc-yurezan_bridge"><div class="photo-canvas"><img src="./images/pyramid-ncc-yurezan_bridge.jpg" width="1600" height="1339" alt="A river runs between rocky wooded cliffs, with a railway ledge on the right and a metal bridge in the distance." loading="lazy" decoding="async"></div><figcaption><span class="caption-label">On the way to Yurezan Bridge.</span> <span class="result-meta">G (x, y) = (25, 55); R (x, y) = (34, 117). Alignment 4.60 s.</span> <a href="https://www.loc.gov/pictures/item/2018679592/">Source</a>.</figcaption></figure></div>
+
+      </section>
+
+      <section class="report-section" id="reproducibility" aria-labelledby="reproducibility-heading">
+        <h2 id="reproducibility-heading">7. Offsets and timing</h2>
+        <p>
+          Offsets are relative to blue, written (x, y) in original-image pixels.
+          Positive x moves right; positive y moves down.
+        </p>
+
+<p>With raw-intensity NCC, 16 of 17 reconstructions appear aligned; Emir retains visible color fringes. Median total processing time was 4.74 s, and the slowest scan took 6.54 s.</p><div class="scroll-wrapper"><table class="capture-table"><caption>Raw-intensity pyramid results. Channel dimensions are width × height; times are in seconds.</caption><thead><tr><th scope="col">Image</th><th scope="col">Channel size</th><th scope="col">G (x, y)</th><th scope="col">R (x, y)</th><th scope="col">Alignment</th><th scope="col">Total</th><th scope="col">Visual check</th></tr></thead><tbody><tr><th scope="row">Cathedral</th><td>390 × 341</td><td>(2, 5)</td><td>(3, 12)</td><td>0.11</td><td>0.12</td><td>aligned</td></tr><tr><th scope="row">Church</th><td>3634 × 3202</td><td>(4, 25)</td><td>(-4, 58)</td><td>4.10</td><td>4.54</td><td>aligned</td></tr><tr><th scope="row">Emir</th><td>3702 × 3209</td><td>(24, 49)</td><td>(57, 105)</td><td>4.40</td><td>4.74</td><td>misaligned</td></tr><tr><th scope="row">Harvesters</th><td>3683 × 3218</td><td>(17, 60)</td><td>(14, 124)</td><td>4.12</td><td>4.41</td><td>aligned</td></tr><tr><th scope="row">Icon</th><td>3741 × 3244</td><td>(17, 41)</td><td>(23, 89)</td><td>4.11</td><td>4.59</td><td>aligned</td></tr><tr><th scope="row">Ilemselga</th><td>3800 × 3270</td><td>(7, 40)</td><td>(11, 130)</td><td>4.52</td><td>4.98</td><td>aligned</td></tr><tr><th scope="row">Melons</th><td>3770 × 3241</td><td>(11, 82)</td><td>(13, 179)</td><td>4.12</td><td>4.43</td><td>aligned</td></tr><tr><th scope="row">Monastery</th><td>391 × 341</td><td>(2, -3)</td><td>(2, 3)</td><td>0.13</td><td>0.14</td><td>aligned</td></tr><tr><th scope="row">Religious painting</th><td>3742 × 3193</td><td>(3, 28)</td><td>(7, 68)</td><td>5.01</td><td>5.32</td><td>aligned</td></tr><tr><th scope="row">Self portrait</th><td>3810 × 3251</td><td>(29, 79)</td><td>(37, 176)</td><td>4.43</td><td>4.84</td><td>aligned</td></tr><tr><th scope="row">Siren</th><td>3817 × 3250</td><td>(-6, 49)</td><td>(-25, 96)</td><td>5.06</td><td>5.45</td><td>aligned</td></tr><tr><th scope="row">Three generations</th><td>3714 × 3209</td><td>(14, 53)</td><td>(11, 112)</td><td>3.84</td><td>4.20</td><td>aligned</td></tr><tr><th scope="row">Tobolsk</th><td>396 × 341</td><td>(3, 3)</td><td>(3, 6)</td><td>0.13</td><td>0.14</td><td>aligned</td></tr><tr><th scope="row">Wharf</th><td>3761 × 3244</td><td>(-7, 15)</td><td>(-16, 83)</td><td>4.73</td><td>5.06</td><td>aligned</td></tr><tr><th scope="row">Head study</th><td>3761 × 3212</td><td>(9, 55)</td><td>(11, 117)</td><td>5.48</td><td>6.00</td><td>aligned</td></tr><tr><th scope="row">Scientific laboratory</th><td>3742 × 3212</td><td>(47, 52)</td><td>(77, 113)</td><td>6.08</td><td>6.54</td><td>aligned</td></tr><tr><th scope="row">On the way to Yurezan Bridge</th><td>3770 × 3244</td><td>(25, 55)</td><td>(34, 117)</td><td>4.60</td><td>4.99</td><td>aligned</td></tr></tbody></table></div><p class="result-meta">Timings are from the saved reconstruction run on macOS (arm64), using Python 3.13.11, NumPy 2.5.3, and Pillow 12.3.0. Total time includes input verification, reading the scan, alignment, and saving the JPEG.</p>
+
+      </section>
+
+      <section class="report-section references" id="references" aria-labelledby="references-heading">
+        <h2 id="references-heading">8. References</h2>
+        <ol>
+          <li><a href="https://cal-cs180.github.io/fa26/hw/proj1/index.html">UC Berkeley CS 180, Project 1: Images of the Russian Empire</a>. Problem definition, baseline methods, and required experiments.</li>
+          <li><a href="https://www.loc.gov/exhibits/empire/making.html">Library of Congress, Color Photography Method</a>. Historical capture and reconstruction context.</li>
+          <li><a href="https://visionbook.mit.edu/blurring_2.html">Foundations of Computer Vision, Chapter 17: Blur Filters</a>. Binomial filters, composition, and separability.</li>
+          <li><a href="https://visionbook.mit.edu/upsamplig_downsampling_2.html">Foundations of Computer Vision, Chapter 21: Downsampling and Upsampling Images</a>. Sampling, aliasing, and filtering before reduction.</li>
+        </ol>
+      </section>
+    </main>
+
+    <footer class="document-footer">
+      <p>Bryan Li · CS 180/280A · Fall 2026</p>
+      <p>Historical photographs: Sergei Mikhailovich Prokudin-Gorskii, Library of Congress.</p>
+      <p class="no-print"><a href="../index.html">Return to the portfolio</a></p>
+    </footer>
+  </body>
+</html>

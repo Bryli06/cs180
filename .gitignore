@@ -2,3 +2,4 @@
 .omx/
 *.HEIC
 *.exif
+/lab/

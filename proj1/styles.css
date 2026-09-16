@@ -1,0 +1,181 @@
+/* Report-specific layout; the portfolio stylesheet owns the visual tokens. */
+.document-header h1 {
+  max-width: 24ch;
+}
+
+.report-section h3 {
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.18rem;
+}
+
+.report-section p,
+figcaption,
+.references li {
+  overflow-wrap: break-word;
+}
+
+.equation {
+  max-width: 100%;
+  margin: 1.6rem 0;
+  padding: 0.5rem 0;
+  font-size: 1.12rem;
+  line-height: 2;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.equation--stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.fraction {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: middle;
+  padding: 0 0.3rem;
+  line-height: 1.5;
+}
+
+.fraction > span:first-child {
+  padding: 0 0.3rem 0.15rem;
+  border-bottom: 1px solid currentColor;
+}
+
+.fraction > span:last-child {
+  padding-top: 0.15rem;
+}
+
+.derivation-steps li {
+  padding-left: 0.3rem;
+  margin: 0.65rem 0;
+}
+
+.sampling-figure {
+  margin: 2rem 0;
+}
+
+.sampling-figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.sampling-figure text {
+  fill: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+}
+
+.results-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2rem 1.5rem;
+  margin: 2rem 0;
+}
+
+.result-meta {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.capture-table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.capture-table thead {
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+}
+
+.capture-table tbody tr {
+  border-bottom: 1px solid var(--paper-deep);
+}
+
+.capture-table th,
+.capture-table td {
+  vertical-align: top;
+}
+
+.references li {
+  margin-bottom: 0.75rem;
+}
+
+@media (min-width: 48rem) {
+  .results-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .photo-grid--triple {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 26rem) {
+  .equation {
+    font-size: 1rem;
+  }
+
+  .sampling-figure text {
+    font-size: 32px;
+  }
+}
+
+@media print {
+  .document-header {
+    margin-bottom: 2rem;
+  }
+
+  .abstract {
+    margin-bottom: 2rem;
+  }
+
+  .report-section h3 {
+    break-after: avoid;
+  }
+
+  .equation {
+    break-inside: avoid;
+  }
+
+  .results-grid,
+  .photo-grid--pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .photo-grid--triple {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .scroll-wrapper {
+    overflow: visible;
+  }
+
+  .capture-table {
+    font-size: 8pt;
+  }
+
+  .capture-table th,
+  .capture-table td {
+    padding: 0.35rem 0.3rem;
+  }
+
+  .capture-table tr {
+    break-inside: avoid;
+  }
+
+  .capture-table thead {
+    display: table-header-group;
+  }
+
+  .references {
+    break-before: auto;
+  }
+}

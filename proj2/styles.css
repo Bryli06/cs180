@@ -1,0 +1,64 @@
+/* Project 2 layout. Colors and fonts come from the shared stylesheet. */
+.document-header h1 { max-width: 22ch; }
+.contents ol { list-style: none; padding-left: 0; }
+.contents li { padding-left: 0; }
+.contents li::before { content: none; }
+.lead-figure.report-figure { max-width: 25rem; margin: 0 auto 3rem; }
+.report-section h3 { margin-top: 2rem; margin-bottom: .5rem; font-size: 1.18rem; }
+.report-section p, figcaption, .references li { overflow-wrap: break-word; }
+.report-figure { margin: 2rem 0; }
+.report-figure > .photo-grid, .report-figure > .stack-grid { margin: 0; }
+.panel-label { margin: .4rem 0 0; color: var(--muted-ink); font-size: .83rem; text-align: center; }
+.equation { margin: 1.5rem 0; padding: .5rem 0; text-align: center; font-size: 1.08rem; overflow-x: auto; }
+.equation .katex-display { margin: 0; }
+.katex { font-size: 1em; }
+.capture-table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.capture-table thead { border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
+.capture-table tbody tr { border-bottom: 1px solid var(--paper-deep); }
+.capture-table th, .capture-table td { vertical-align: top; text-align: left; }
+.capture-table caption { text-align: left; }
+.code-excerpt { padding: 1rem; border: 1px solid var(--rule); border-radius: 0; background: var(--paper-deep); overflow-x: auto; line-height: 1.5; font-size: .76rem; tab-size: 4; }
+.code-excerpt code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.kernel-grid .photo-canvas { padding: .8rem; }
+.kernel-grid img { image-rendering: pixelated; }
+.stack-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.35rem 1rem; margin: 1.5rem 0 2.5rem; }
+.native-canvas { display: flex; justify-content: flex-start; align-items: center; overflow-x: auto; padding: 1rem; }
+.native-canvas a { display: block; flex: none; margin: auto; }
+.native-canvas img { width: auto; max-width: none; height: auto; }
+.distance-views { display: flex; justify-content: center; align-items: flex-start; gap: 3rem; padding: 1.5rem 0 .5rem; }
+.distance-views > div { text-align: center; }
+.distance-views img { display: block; width: auto; height: auto; max-width: none; margin: 0 auto .45rem; }
+.distance-views span { display: block; color: var(--muted-ink); font-size: .8rem; }
+.hybrid-result { margin: 2rem 0 2.5rem; }
+.references li { margin-bottom: .8rem; }
+.asset-links { padding-left: 1.4rem; font-size: .88rem; }
+.asset-links li { margin: .4rem 0; overflow-wrap: anywhere; }
+.supplement { margin: 0; padding: .65rem 0; border-bottom: 1px solid var(--rule); }
+.supplement summary { cursor: pointer; color: var(--accent); }
+.supplement summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+@media (min-width: 48rem) {
+  .photo-grid--triple, .stack-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 26rem) {
+  .equation { font-size: .95rem; }
+  .distance-views { gap: 1.5rem; }
+  .code-excerpt { font-size: .7rem; padding: .65rem; }
+}
+@media print {
+  .document-header, .abstract { margin-bottom: 1.7rem; }
+  .lead-figure.report-figure { max-width: 2.7in; margin-bottom: 1rem; }
+  .report-section h2, .report-section h3 { break-after: avoid; }
+  .equation, .code-excerpt { break-inside: avoid; }
+  .code-excerpt { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 7.5pt; }
+  .photo-grid--pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .photo-grid--triple, .stack-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .scroll-wrapper { overflow: visible; }
+  .capture-table { font-size: 8pt; }
+  .capture-table th, .capture-table td { padding: .3rem; }
+  .capture-table tr { break-inside: avoid; }
+  .capture-table thead { display: table-header-group; }
+  .native-canvas { overflow: visible; padding: .5rem; }
+  .distance-views { padding: .6rem 0 .2rem; }
+  .references, #reflection { break-before: auto; }
+}

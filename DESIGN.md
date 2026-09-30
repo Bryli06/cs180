@@ -3,11 +3,15 @@
 ## Source of truth
 
 - **Status:** Active
-- **Date:** 2026-09-14
-- **Product surfaces:** CS 180 portfolio landing page and Project 0 and Project 1 reports
+- **Date:** 2026-09-29
+- **Product surfaces:** CS 180 portfolio landing page and Project 0, Project 1, and Project 2 reports
 - **Evidence reviewed:** existing `index.html`, `proj0/index.html`, shared `styles.css`, the [Fall 2026 Project 0 brief](https://cal-cs180.github.io/fa26/hw/proj0/index.html), [Project 1 brief](https://cal-cs180.github.io/fa26/hw/proj1/index.html), the local Project 1 scaffolding plan, and the approved [LaTeX.css reference](https://latex.vercel.app/) with its saved 1440×1200 capture under `.omx/artifacts/visual-ralph/project0/`
 
 This file governs presentation and interaction. The course handout governs required academic content and deliverables.
+
+Project 2 evidence: the existing Project 0/1 HTML and CSS, saved Project 1 desktop/mobile
+screenshots, the Fall 2026 Project 2 handout, and the selected figures, source notes,
+and measured results under the private `lab/proj2/` directory.
 
 ## Brand
 
@@ -20,6 +24,8 @@ This file governs presentation and interaction. The course handout governs requi
 - Make all three Project 0 experiments easy to scan and grade.
 - Explain Project 1's alignment, image similarity, and binomial pyramids for readers who know mathematics; supply computer-vision context where needed.
 - Keep Project 1 derivations beside measured photographic evidence; visibly distinguish illustrative numbers from measured results and link primary references near the claims they support.
+- Explain Project 2's seven required parts in assignment order, with source-grounded
+  methods, measured checks, and the selected hybrid and blending examples.
 - Present the final photographs and observations without visible editing scaffolds.
 - Preserve the document-like character of the LaTeX.css reference on screen and in a printed PDF.
 - **Non-goals:** in-browser image processing, a CMS, account features, or reproducing the reference site's content. Project 1 computation is an authorized private authoring step. Gradient-magnitude alignment is an optional experiment; further extensions are outside its present scope.
@@ -33,11 +39,16 @@ This file governs presentation and interaction. The course handout governs requi
 
 ## Information architecture
 
-- `/index.html`: compact portfolio landing page with links to Projects 0 and 1.
+- `/index.html`: compact portfolio landing page with links to Projects 0, 1, and 2.
 - `/proj0/index.html`: title and abstract, contents, Parts 1–3, final reflection, and footer.
 - The Project 0 page follows the assignment order: portrait perspective, architectural perspective compression, then dolly zoom.
 - `/proj1/index.html`: descriptive title and short abstract, leading reconstruction, contents, three exposures, similarity and single-scale results, filter derivation, coarse-to-fine alignment and full results, Emir failure analysis and edge-alignment comparison, three additional photographs, offsets and timing, and linked references. Link the Emir caption to its analysis and distinguish measured checks from likely causes. Label the original gallery and measurements as the raw-intensity baseline; compare the edge experiment with crops from the same blue-coordinate region.
 - Project 1 is a static report. Its photographs and measured offsets are saved in ordinary HTML; the image-processing script does not generate or export the webpage.
+- `/proj2/index.html`: title/abstract, a leading planet blend, contents, convolution,
+  finite differences, DoG, a sigma/threshold comparison, sharpening, three selected hybrids, Gaussian/Laplacian
+  stacks, three blends, reflection, and references. The selected custom hybrids
+  are FREEDOM/SLAVERY and Burger King/McDonald's; all three hybrids are grayscale. The custom blends
+  are red/giant pandas and Neptune/Uranus. Other trials are not portfolio selections.
 
 ## Design principles
 
@@ -50,7 +61,7 @@ This file governs presentation and interaction. The course handout governs requi
 ## Visual language
 
 - **Color:** warm white paper, near-black ink, muted gray metadata, oxblood links, and pale ivory draft areas.
-- **Typography:** LaTeX.css/Latin Modern when available, with Georgia and Times New Roman fallbacks; monospace only for filenames.
+- **Typography:** LaTeX.css/Latin Modern when available, with Georgia and Times New Roman fallbacks; monospace for filenames and the course-requested convolution snippets.
 - **Spacing:** a narrow `80ch` reading measure with generous section breaks and compact caption spacing.
 - **Shape/elevation:** square corners, thin rules, no shadows, and restrained observation callouts.
 - **Motion:** none except the student-provided dolly-zoom GIF; respect reduced-motion preferences.
@@ -67,6 +78,12 @@ This file governs presentation and interaction. The course handout governs requi
 - **Project 1 equations:** static, accessible math with concise context and wrapping on small screens; no rendering dependency.
 - **Project 1 result gallery:** existing photo frames with reserved image dimensions, lazy loading below the leading figure, labeled offsets, linked archival sources, and consistent comparisons.
 - **Project 1 additions:** `/proj1/styles.css` owns only report-specific equation, diagram, gallery, table, and print layout. Reuse shared tokens; do not duplicate them.
+- **Project 2 additions:** `/proj2/styles.css` reuses the shared tokens and document
+  components, adding readable kernel/stack grids, short code excerpts, and native-size
+  hybrid frames with actual-size distant previews. No product-style cards or sliders.
+- **Project 2 equations:** LaTeX source in `\(...\)` and `\[...\]`, rendered by
+  locally bundled KaTeX. Keep the initialization script small; include upstream
+  assets and license separately. No handwritten equation HTML or MathML.
 
 ## Accessibility
 
@@ -82,6 +99,11 @@ This file governs presentation and interaction. The course handout governs requi
 - Base layout is single-column and usable from 320px upward.
 - Photo comparisons become two columns at `48rem` and collapse below it.
 - Wide metadata tables scroll horizontally within the reading column.
+- Project 2's full-size hybrids may scroll inside a labeled figure on narrow screens;
+  their small previews must never be stretched. The document itself must not overflow.
+- Project 2 groups related panels under one figure caption. Individual stack levels
+  get short labels; the shared explanation appears once. Section numbers belong
+  in the heading, without a separate eyebrow or repeated observation callout.
 - Touch and hover present the same information; no content is hover-only.
 - Print uses a clean white background, hides `.no-print`, and keeps figures and captions together where practical.
 
@@ -104,13 +126,23 @@ This file governs presentation and interaction. The course handout governs requi
 
 ## Implementation constraints
 
-- Plain static HTML and CSS; no build step, client-side script, or new dependency.
+- Plain HTML and CSS with no build step. Project 2's user-requested LaTeX rendering
+  uses bundled KaTeX and one small initialization script; no other client-side
+  framework or rendering dependency is needed.
 - Relative URLs must work on GitHub Pages from the repository root, `/proj0/`, and `/proj1/`.
+- Project 2 uses the same relative-URL contract at `/proj2/`. Copy only selected
+  public media into `proj2/images/`; never expose `lab/`, raw metadata, or the full
+  implementation. The assignment explicitly requests limited convolution snippets
+  in the report, so those excerpts are the documented exception.
 - LaTeX.css supplies the approved reference's base typography; `/styles.css` supplies local fallback and project-specific figures.
 - The 1440×1200 reference capture and QA artifacts live under `.omx/artifacts/visual-ralph/project0/`.
 - Verify HTML structure, local links, media existence, responsive overflow, and print rules before completion.
 - The private uv-managed script reads the local originals and saves reconstructed JPEGs. The separate public site contains static HTML and its media, never implementation source or the private environment.
 - Check Project 1 at 320, 768, and 1440 pixels and in print. Use the saved scholarly reference for visual verdicts; photography, derivations, and result galleries are intentional content differences.
+- Check Project 2 at 320, 768, and 1440 pixels, including image loading, anchor
+  navigation, native hybrid sizes, and print layout. Use the saved Project 1 views
+  as the style reference. Browser verification uses an isolated local preview of
+  the new public page; the private computation directory is never served.
 
 ## Open questions
 

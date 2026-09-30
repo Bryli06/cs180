@@ -1,6 +1,7 @@
 # CS180 portfolio
 
-Open [Project 0](proj0/index.html) or [Project 1](proj1/index.html) in Brave.
+Open [Project 0](proj0/index.html), [Project 1](proj1/index.html), or
+[Project 2](proj2/index.html) in a browser.
 These are ordinary static HTML pages with local image files.
 
 The private Project 1 code is in `lab/`. Its 17 original scans are already local:
@@ -15,3 +16,7 @@ See [the short code README](lab/README.md) for single-scale and MSE runs.
 
 Only the static portfolio belongs on GitHub Pages. Keep `lab/` private, and omit
 original image files from the course's code submission.
+
+Project 2 uses the same portfolio styles and includes the selected filtering,
+sharpening, hybrid, and blending results. Its private notebook and image credits
+are documented in [lab/proj2/README.md](lab/proj2/README.md).

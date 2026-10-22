@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="CS 180 Project 3, Parts A and B: pretrained flow-model experiments and MNIST denoising, flow matching, and class-conditioned generation trained from scratch.">
+<title>Project 3 · Exploring Flow Models</title>
+<link rel="stylesheet" href="https://latex.vercel.app/style.min.css">
+<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet" href="../proj2/vendor/katex/katex.min.css">
+<link rel="stylesheet" href="./styles.css">
+<script defer src="../proj2/vendor/katex/katex.min.js"></script>
+<script defer src="../proj2/vendor/katex/auto-render.min.js"></script>
+<script defer src="../proj2/math.js"></script>
+</head><body>
+<a class="back-link no-print" href="../index.html">← CS 180 portfolio</a>
+<header class="document-header">
+<span class="section-kicker">Programming Project 3 · Parts A &amp; B</span>
+<h1>Exploring Flow Models</h1>
+<p class="author">Bryan Li</p>
+<p class="document-meta">CS 180 · Fall 2026</p>
+</header><main>
+<section class="abstract" aria-labelledby="abstract-heading"><h2 id="abstract-heading">Abstract</h2>
+<p>I used a pretrained flow model for image editing and illusions, then trained MNIST denoisers and flow models from scratch.</p></section>
+<nav class="contents no-print" aria-labelledby="contents-heading"><h2 id="contents-heading">Contents</h2>
+<h3>Part A · Pretrained flow models</h3><ol>
+<li><a href="#setup">Part A inputs and settings</a></li>
+<li><a href="#part-11">1.1 Noisy training inputs</a></li>
+<li><a href="#part-12">1.2 Gaussian denoising</a></li>
+<li><a href="#part-13">1.3 One-step denoising</a></li>
+<li><a href="#part-14">1.4 Visualizing velocity</a></li>
+<li><a href="#part-15">1.5 Euler denoising</a></li>
+<li><a href="#part-16">1.6 Generating images from noise</a></li>
+<li><a href="#part-21">2.1 Classifier-free guidance</a></li>
+<li><a href="#part-31">3.1 Image-to-image editing</a></li>
+<li><a href="#drawings">Hand-drawn and web images</a></li>
+<li><a href="#part-32">3.2 Text-guided editing</a></li>
+<li><a href="#part-33">3.3 Visual anagrams</a></li>
+<li><a href="#part-34">3.4 Hybrid images</a></li>
+<li><a href="#reflection">Part A observations</a></li>
+</ol><h3>Part B · Flow matching from scratch</h3><ol>
+<li><a href="#part-b">Part B data and settings</a></li>
+<li><a href="#b-11">1.1 The UNet</a></li>
+<li><a href="#b-12">1.2 Noising MNIST</a></li>
+<li><a href="#b-121">1.2.1 Training the denoiser</a></li>
+<li><a href="#b-122">1.2.2 Other noise levels</a></li>
+<li><a href="#b-123">1.2.3 Denoising pure noise</a></li>
+<li><a href="#b-21">2.1 Time conditioning</a></li>
+<li><a href="#b-22">2.2 Flow-matching training</a></li>
+<li><a href="#b-23">2.3 Time-conditioned samples</a></li>
+<li><a href="#b-24">2.4 Class conditioning</a></li>
+<li><a href="#b-25">2.5 Class-conditioned training</a></li>
+<li><a href="#b-26">2.6 Class-conditioned samples</a></li>
+<li><a href="#b-no-scheduler">Removing the learning-rate scheduler</a></li>
+<li><a href="#b-reflection">Part B observations</a></li>
+<li><a href="#references">References and image credits</a></li>
+</ol></nav>
+<section class="report-section" id="setup" aria-labelledby="setup-heading"><h2 id="setup-heading">Part A · Inputs and settings</h2>
+<p>I used the course’s pretrained PixNerd-XXL-P16-T2I model without training. All inputs are RGB images at 512 × 512, normalized to \([-1,1]\). The cat and pond photographs are center-cropped to squares; the color portrait was already square. I centered the tall monochrome drawing on a white square before resizing so the complete composition remains visible.</p>
+<p>The cat is the shared input for Sections 1.1–1.5. The cat and pond are my two selected test images for editing; the pond also serves as the web-image example. The Campanile is supplied by the course.</p>
+<p>I used Euler step size \(h=0.02\) and float32 model evaluation and integration. The initial Colab runs used an NVIDIA A100-SXM4-80GB; the waterfall and skull/rose refinements used an A100-SXM4-40GB. Denoising and editing use fixed seed 180. Generation comparisons use seeds 180–184. Unless stated otherwise, the condition is “a high quality photo.” Guidance uses an empty-string unconditional prompt and \(w=7\).</p>
+</section>
+<section class="report-section" id="part-11" aria-labelledby="part-11-heading"><h2 id="part-11-heading">1.1 Noisy training inputs</h2>
+<p>For clean image \(x_1\) and one fixed Gaussian noise tensor \(\epsilon\), I construct</p>
+<div class="equation">\[x_t=(1-t)\epsilon+t x_1.\qquad t\in[0,1]\]</div>
+<p>Time runs from pure noise at \(t=0\) to the clean input at \(t=1\). I use fixed seed 180 and reuse the same noise tensor at all three times.</p>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/training_inputs_00.png" aria-label="Open full-size image: Original"><img src="./images/training_inputs_00.png" width="512" height="512" alt="A fluffy cat curled on a wooden side table" fetchpriority="high" decoding="async"></a></div>
+<p class="panel-label">Original</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/training_inputs_01.png" aria-label="Open full-size image: \(t=0.25\)"><img src="./images/training_inputs_01.png" width="512" height="512" alt="Cat mixed with Gaussian noise at time 0.25" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">\(t=0.25\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/training_inputs_02.png" aria-label="Open full-size image: \(t=0.50\)"><img src="./images/training_inputs_02.png" width="512" height="512" alt="Cat mixed with Gaussian noise at time 0.50" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">\(t=0.50\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/training_inputs_03.png" aria-label="Open full-size image: \(t=0.75\)"><img src="./images/training_inputs_03.png" width="512" height="512" alt="Cat mixed with Gaussian noise at time 0.75" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">\(t=0.75\)</p></div>
+</div><figcaption><span class="caption-label">Figure 1. Linear interpolation.</span> </figcaption></figure>
+<p>At t = 0.25, the broad white shape of the cat is still visible, but the fur and table edges are heavily obscured. Increasing t reveals the ears, fur texture, and furniture.</p>
+</section>
+<section class="report-section" id="part-12" aria-labelledby="part-12-heading"><h2 id="part-12-heading">1.2 Gaussian denoising</h2>
+<p>The mixture scales the signal by \(t\), so I first divide by \(t\) and then apply a Gaussian blur: \(\hat x_1=G_\sigma*(x_t/t)\). I tried \(\sigma\in\{1,2,4,8,16\}\), using kernel width \(6\sigma+1\), and selected the lowest mean-squared error against the known clean input separately at each time.</p>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/blur_0.25_00.png" aria-label="Open full-size image: Noisy input, \(t=0.25\)"><img src="./images/blur_0.25_00.png" width="512" height="512" alt="Noisy cat photograph at time 0.25" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Noisy input, \(t=0.25\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/blur_0.25_01.png" aria-label="Open full-size image: Gaussian blur, \(\sigma=8\)"><img src="./images/blur_0.25_01.png" width="512" height="512" alt="Cat after Gaussian denoising with sigma 8" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Gaussian blur, \(\sigma=8\)</p></div>
+</div><figcaption><span class="caption-label">Figure 2. Gaussian denoising at t = 0.25.</span> The noisy input is displayed without the signal rescaling; the blurred output uses the rescaled input.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/blur_0.50_00.png" aria-label="Open full-size image: Noisy input, \(t=0.50\)"><img src="./images/blur_0.50_00.png" width="512" height="512" alt="Noisy cat photograph at time 0.50" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Noisy input, \(t=0.50\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/blur_0.50_01.png" aria-label="Open full-size image: Gaussian blur, \(\sigma=4\)"><img src="./images/blur_0.50_01.png" width="512" height="512" alt="Cat after Gaussian denoising with sigma 4" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Gaussian blur, \(\sigma=4\)</p></div>
+</div><figcaption><span class="caption-label">Figure 3. Gaussian denoising at t = 0.50.</span> The noisy input is displayed without the signal rescaling; the blurred output uses the rescaled input.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/blur_0.75_00.png" aria-label="Open full-size image: Noisy input, \(t=0.75\)"><img src="./images/blur_0.75_00.png" width="512" height="512" alt="Noisy cat photograph at time 0.75" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Noisy input, \(t=0.75\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/blur_0.75_01.png" aria-label="Open full-size image: Gaussian blur, \(\sigma=2\)"><img src="./images/blur_0.75_01.png" width="512" height="512" alt="Cat after Gaussian denoising with sigma 2" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Gaussian blur, \(\sigma=2\)</p></div>
+</div><figcaption><span class="caption-label">Figure 4. Gaussian denoising at t = 0.75.</span> The noisy input is displayed without the signal rescaling; the blurred output uses the rescaled input.</figcaption></figure>
+<p>The selected blur widths decrease from σ = 8 to 4 to 2 as the input gets cleaner. At t = 0.25, large colored blotches remain and the fur becomes a smooth mass. At t = 0.75, the cat is recognizable, but grain remains and individual fur strands are softened.</p>
+</section>
+<section class="report-section" id="part-13" aria-labelledby="part-13-heading"><h2 id="part-13-heading">1.3 One-step denoising</h2>
+<p>The model predicts a velocity \(v_\theta(x_t,t,c)\). One prediction estimates the displacement from the current time to the endpoint:</p>
+<div class="equation">\[\hat x_1=x_t+(1-t)v_\theta(x_t,t,c).\]</div>
+<p>I use the generic photo prompt with no classifier-free guidance in this section. The same saved inputs and original noise are reused throughout the denoising comparison.</p>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--triple">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/one_step_0.25_00.png" aria-label="Open full-size image: Original"><img src="./images/one_step_0.25_00.png" width="512" height="512" alt="Original cat curled on a wooden side table" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/one_step_0.25_01.png" aria-label="Open full-size image: Noisy input, \(t=0.25\)"><img src="./images/one_step_0.25_01.png" width="512" height="512" alt="Noisy cat photograph at time 0.25" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Noisy input, \(t=0.25\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/one_step_0.25_02.png" aria-label="Open full-size image: One-step estimate"><img src="./images/one_step_0.25_02.png" width="512" height="512" alt="Cat reconstructed from time 0.25 using one velocity prediction" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">One-step estimate</p></div>
+</div><figcaption><span class="caption-label">Figure 5. One-step denoising at t = 0.25.</span> </figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--triple">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/one_step_0.50_00.png" aria-label="Open full-size image: Original"><img src="./images/one_step_0.50_00.png" width="512" height="512" alt="Original cat curled on a wooden side table" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/one_step_0.50_01.png" aria-label="Open full-size image: Noisy input, \(t=0.50\)"><img src="./images/one_step_0.50_01.png" width="512" height="512" alt="Noisy cat photograph at time 0.50" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Noisy input, \(t=0.50\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/one_step_0.50_02.png" aria-label="Open full-size image: One-step estimate"><img src="./images/one_step_0.50_02.png" width="512" height="512" alt="Cat reconstructed from time 0.50 using one velocity prediction" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">One-step estimate</p></div>
+</div><figcaption><span class="caption-label">Figure 6. One-step denoising at t = 0.50.</span> </figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--triple">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/one_step_0.75_00.png" aria-label="Open full-size image: Original"><img src="./images/one_step_0.75_00.png" width="512" height="512" alt="Original cat curled on a wooden side table" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/one_step_0.75_01.png" aria-label="Open full-size image: Noisy input, \(t=0.75\)"><img src="./images/one_step_0.75_01.png" width="512" height="512" alt="Noisy cat photograph at time 0.75" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Noisy input, \(t=0.75\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/one_step_0.75_02.png" aria-label="Open full-size image: One-step estimate"><img src="./images/one_step_0.75_02.png" width="512" height="512" alt="Cat reconstructed from time 0.75 using one velocity prediction" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">One-step estimate</p></div>
+</div><figcaption><span class="caption-label">Figure 7. One-step denoising at t = 0.75.</span> </figcaption></figure>
+<p>The model removes the colored grain much more effectively than the Gaussian baseline. At t = 0.25, it reconstructs the cat and table but smooths away much of the fur and the lamp in the background. At t = 0.75, the estimate preserves substantially more fur detail and the original outline.</p>
+</section>
+<section class="report-section" id="part-14" aria-labelledby="part-14-heading"><h2 id="part-14-heading">1.4 Visualizing velocity</h2>
+<p>The predicted and ground-truth updates are:</p>
+<div class="equation">\[\Delta_{\mathrm{pred}}=(1-t)v_\theta(x_t,t,c),\qquad \Delta_{\mathrm{gt}}=(1-t)(x_1-\epsilon)=x_1-x_t.\]</div>
+<p>The error map is the root-mean-square difference across the three color channels at each pixel, computed before clipping or display scaling:</p>
+<div class="equation">\[E_t(i,j)=\sqrt{\frac{1}{3}\sum_{k\in\{R,G,B\}}\big[\Delta_{\mathrm{pred}}(i,j,k)-\Delta_{\mathrm{gt}}(i,j,k)\big]^2}.\]</div>
+<figure class="photo-slot report-figure single-input"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/velocity_original.png" aria-label="Open full-size image: Original cat"><img src="./images/velocity_original.png" width="512" height="512" alt="Original cat" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original cat</p></div>
+</div><figcaption><span class="caption-label">Figure 8. Reference for the update comparison.</span> </figcaption></figure>
+<p>All signed RGB updates use the same symmetric range \([-3.971,3.971]\), with zero shown as middle gray. Every error map uses the same linear scale, from 0.000 to 0.946.</p>
+<div class="error-scale" role="img" aria-label="Shared error color scale, dark is zero and pale yellow is 0.946"><div class="error-scale-bar"></div><div class="error-scale-labels"><span>0 · low RMS error</span><span>0.946 · high</span></div></div>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/training_inputs_01.png" aria-label="Open full-size image: Noisy input, \(t=0.25\)"><img src="./images/training_inputs_01.png" width="512" height="512" alt="Noisy cat photograph at time 0.25" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Noisy input, \(t=0.25\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/velocity_predicted_0.25.png" aria-label="Open full-size image: Predicted update"><img src="./images/velocity_predicted_0.25.png" width="512" height="512" alt="Model-predicted RGB update for the cat at time 0.25, zero shown as gray" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Predicted update</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/velocity_target_0.25.png" aria-label="Open full-size image: Ground-truth update"><img src="./images/velocity_target_0.25.png" width="512" height="512" alt="Exact RGB update for the original cat and noise pair at time 0.25" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Ground-truth update</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/velocity_error_0.25.png" aria-label="Open full-size image: Error: RGB RMS"><img src="./images/velocity_error_0.25.png" width="512" height="512" alt="Heatmap of update error at time 0.25, highlighting fur and table edges" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Error: RGB RMS</p></div>
+</div><figcaption><span class="caption-label">Figure 9. Update comparison at t = 0.25.</span> Mean pixel RMS error: 0.0623.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/training_inputs_02.png" aria-label="Open full-size image: Noisy input, \(t=0.50\)"><img src="./images/training_inputs_02.png" width="512" height="512" alt="Noisy cat photograph at time 0.50" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Noisy input, \(t=0.50\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/velocity_predicted_0.50.png" aria-label="Open full-size image: Predicted update"><img src="./images/velocity_predicted_0.50.png" width="512" height="512" alt="Model-predicted RGB update for the cat at time 0.50, zero shown as gray" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Predicted update</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/velocity_target_0.50.png" aria-label="Open full-size image: Ground-truth update"><img src="./images/velocity_target_0.50.png" width="512" height="512" alt="Exact RGB update for the original cat and noise pair at time 0.50" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Ground-truth update</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/velocity_error_0.50.png" aria-label="Open full-size image: Error: RGB RMS"><img src="./images/velocity_error_0.50.png" width="512" height="512" alt="Heatmap of update error at time 0.50, highlighting fur and table edges" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Error: RGB RMS</p></div>
+</div><figcaption><span class="caption-label">Figure 10. Update comparison at t = 0.50.</span> Mean pixel RMS error: 0.0373.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/training_inputs_03.png" aria-label="Open full-size image: Noisy input, \(t=0.75\)"><img src="./images/training_inputs_03.png" width="512" height="512" alt="Noisy cat photograph at time 0.75" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Noisy input, \(t=0.75\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/velocity_predicted_0.75.png" aria-label="Open full-size image: Predicted update"><img src="./images/velocity_predicted_0.75.png" width="512" height="512" alt="Model-predicted RGB update for the cat at time 0.75, zero shown as gray" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Predicted update</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/velocity_target_0.75.png" aria-label="Open full-size image: Ground-truth update"><img src="./images/velocity_target_0.75.png" width="512" height="512" alt="Exact RGB update for the original cat and noise pair at time 0.75" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Ground-truth update</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/velocity_error_0.75.png" aria-label="Open full-size image: Error: RGB RMS"><img src="./images/velocity_error_0.75.png" width="512" height="512" alt="Heatmap of update error at time 0.75, highlighting fur and table edges" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Error: RGB RMS</p></div>
+</div><figcaption><span class="caption-label">Figure 11. Update comparison at t = 0.75.</span> Mean pixel RMS error: 0.0234.</figcaption></figure>
+<p>The two update images look similar because both contain a large noise-canceling component. Their difference is concentrated along the fur, ears, and sharp table edges; the smooth wall has much less error. Mean pixel RMS falls from 0.0623 to 0.0373 to 0.0234 across the three times. This decrease reflects both a cleaner input and the smaller remaining-time factor (1 − t), so it is not a direct comparison of unscaled velocity error.</p>
+</section>
+<section class="report-section" id="part-15" aria-labelledby="part-15-heading"><h2 id="part-15-heading">1.5 Euler denoising</h2>
+<p>Euler integration predicts again after each small movement:</p>
+<div class="equation">\[x_{t+h}=x_t+h\,v_\theta(x_t,t,c).\]</div>
+<p>Starting from the saved \(t=0.50\) cat mixture, I take 25 updates of size 0.02. The figures include the initial state, every fifth update, and the final state. The sampler also shortens its last step when a starting time does not divide the remaining interval evenly.</p>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--triple">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/trajectory_00.png" aria-label="Open full-size image: \(t=0.50\)"><img src="./images/trajectory_00.png" width="512" height="512" alt="Cat along the Euler denoising trajectory at time 0.50" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">\(t=0.50\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/trajectory_01.png" aria-label="Open full-size image: \(t=0.60\)"><img src="./images/trajectory_01.png" width="512" height="512" alt="Cat along the Euler denoising trajectory at time 0.60" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">\(t=0.60\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/trajectory_02.png" aria-label="Open full-size image: \(t=0.70\)"><img src="./images/trajectory_02.png" width="512" height="512" alt="Cat along the Euler denoising trajectory at time 0.70" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">\(t=0.70\)</p></div>
+</div><figcaption><span class="caption-label">Figure 12. Euler trajectory, first half.</span> </figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--triple">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/trajectory_03.png" aria-label="Open full-size image: \(t=0.80\)"><img src="./images/trajectory_03.png" width="512" height="512" alt="Cat along the Euler denoising trajectory at time 0.80" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">\(t=0.80\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/trajectory_04.png" aria-label="Open full-size image: \(t=0.90\)"><img src="./images/trajectory_04.png" width="512" height="512" alt="Cat along the Euler denoising trajectory at time 0.90" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">\(t=0.90\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/trajectory_05.png" aria-label="Open full-size image: \(t=1.00\)"><img src="./images/trajectory_05.png" width="512" height="512" alt="Cat along the Euler denoising trajectory at time 1.00" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">\(t=1.00\)</p></div>
+</div><figcaption><span class="caption-label">Figure 13. Euler trajectory, second half.</span> These states follow updates 15, 20, and 25.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/comparison_00.png" aria-label="Open full-size image: Original"><img src="./images/comparison_00.png" width="512" height="512" alt="Cat reconstruction comparison: original" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/comparison_01.png" aria-label="Open full-size image: Gaussian blur"><img src="./images/comparison_01.png" width="512" height="512" alt="Cat reconstruction comparison: gaussian blur" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Gaussian blur</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/comparison_02.png" aria-label="Open full-size image: One-step estimate"><img src="./images/comparison_02.png" width="512" height="512" alt="Cat reconstruction comparison: one-step estimate" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">One-step estimate</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/comparison_03.png" aria-label="Open full-size image: Euler reconstruction"><img src="./images/comparison_03.png" width="512" height="512" alt="Cat reconstruction comparison: euler reconstruction" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Euler reconstruction</p></div>
+</div><figcaption><span class="caption-label">Figure 14. Denoising methods on the same input.</span> All reconstructions start from the same t = 0.50 noise mixture.</figcaption></figure>
+<div class="scroll-wrapper"><table class="capture-table"><caption>Mean-squared error against the original, measured on raw float32 tensors in the normalized image range.</caption><thead><tr><th scope="col">Method</th><th scope="col">MSE</th></tr></thead><tbody>
+<tr><th scope="row">Gaussian blur</th><td>0.009248</td></tr>
+<tr><th scope="row">One-step estimate</th><td>0.002983</td></tr>
+<tr><th scope="row">Euler reconstruction</th><td>0.003582</td></tr>
+</tbody></table></div>
+<p>Euler gradually removes grain and restores the cat’s outline and fur. Its final image has more distinct fur texture than the one-step estimate from t = 0.50, but that texture differs from the original. One-step denoising has the lowest MSE (0.002983), followed by Euler (0.003582) and Gaussian blur (0.009248). Here, extra integration steps improve visible texture without improving pixelwise reconstruction.</p>
+</section>
+<section class="report-section" id="part-16" aria-labelledby="part-16-heading"><h2 id="part-16-heading">1.6 Generating images from noise</h2>
+<p>I start Euler integration at \(t=0\) from five independent Gaussian noise tensors and take 50 updates. All five samples use the same broad prompt; their seeds are 180–184.</p>
+<p class="prompt"><strong>Prompt:</strong> “a high quality photo”</p>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--triple">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/conditional_0.png" aria-label="Open full-size image: Seed 180"><img src="./images/conditional_0.png" width="512" height="512" alt="Generated portrait with largely missing facial features" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Seed 180</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/conditional_1.png" aria-label="Open full-size image: Seed 181"><img src="./images/conditional_1.png" width="512" height="512" alt="Generated portrait with distorted torso anatomy" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Seed 181</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/conditional_2.png" aria-label="Open full-size image: Seed 182"><img src="./images/conditional_2.png" width="512" height="512" alt="Generated portrait with a hand near the face" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Seed 182</p></div>
+</div><figcaption><span class="caption-label">Figure 15. Ordinary conditional samples, seeds 180–182.</span> These samples use the conditional velocity alone, with no CFG.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/conditional_3.png" aria-label="Open full-size image: Seed 183"><img src="./images/conditional_3.png" width="512" height="512" alt="Generated portrait with rough, inconsistent facial texture" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Seed 183</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/conditional_4.png" aria-label="Open full-size image: Seed 184"><img src="./images/conditional_4.png" width="512" height="512" alt="Generated portrait of a person in a pale shirt" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Seed 184</p></div>
+</div><figcaption><span class="caption-label">Figure 16. Ordinary conditional samples, seeds 183–184.</span> </figcaption></figure>
+<p>All five samples are portraits despite the generic prompt. Seed 180 has almost no facial features, seed 181 has distorted torso anatomy, and seed 183 has rough, inconsistent facial texture. Seeds 182 and 184 are more coherent.</p>
+</section>
+<section class="report-section" id="part-21" aria-labelledby="part-21-heading"><h2 id="part-21-heading">2.1 Classifier-free guidance</h2>
+<p>At the same state and time, I evaluate both the requested prompt and the empty prompt, then amplify their difference:</p>
+<div class="equation">\[v_{\mathrm{CFG}}=v_c+w(v_c-v_u),\qquad w=7.\]</div>
+<p>Under this convention, \(w=0\) reproduces the ordinary conditional prediction. Each pair reuses the starting noise from Section 1.6, using seeds 180–184.</p>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/conditional_0.png" aria-label="Open full-size image: Conditional, \(w=0\)"><img src="./images/conditional_0.png" width="512" height="512" alt="Generated portrait with largely missing facial features" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Conditional, \(w=0\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/cfg_0.png" aria-label="Open full-size image: CFG, \(w=7\)"><img src="./images/cfg_0.png" width="512" height="512" alt="Generated headshot with short dark hair and a gray shirt" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">CFG, \(w=7\)</p></div>
+</div><figcaption><span class="caption-label">Figure 17. Guidance comparison, seed 180.</span> Both images use “a high quality photo” and 50 Euler steps.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/conditional_1.png" aria-label="Open full-size image: Conditional, \(w=0\)"><img src="./images/conditional_1.png" width="512" height="512" alt="Generated portrait with distorted torso anatomy" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Conditional, \(w=0\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/cfg_1.png" aria-label="Open full-size image: CFG, \(w=7\)"><img src="./images/cfg_1.png" width="512" height="512" alt="Generated headshot with long dark hair and a dark collar" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">CFG, \(w=7\)</p></div>
+</div><figcaption><span class="caption-label">Figure 18. Guidance comparison, seed 181.</span> Both images use “a high quality photo” and 50 Euler steps.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/conditional_2.png" aria-label="Open full-size image: Conditional, \(w=0\)"><img src="./images/conditional_2.png" width="512" height="512" alt="Generated portrait with a hand near the face" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Conditional, \(w=0\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/cfg_2.png" aria-label="Open full-size image: CFG, \(w=7\)"><img src="./images/cfg_2.png" width="512" height="512" alt="Generated headshot with a hand near the face against a dark background" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">CFG, \(w=7\)</p></div>
+</div><figcaption><span class="caption-label">Figure 19. Guidance comparison, seed 182.</span> Both images use “a high quality photo” and 50 Euler steps.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/conditional_3.png" aria-label="Open full-size image: Conditional, \(w=0\)"><img src="./images/conditional_3.png" width="512" height="512" alt="Generated portrait with rough, inconsistent facial texture" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Conditional, \(w=0\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/cfg_3.png" aria-label="Open full-size image: CFG, \(w=7\)"><img src="./images/cfg_3.png" width="512" height="512" alt="Generated headshot with dark hair and a gray shirt against a dark background" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">CFG, \(w=7\)</p></div>
+</div><figcaption><span class="caption-label">Figure 20. Guidance comparison, seed 183.</span> Both images use “a high quality photo” and 50 Euler steps.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/conditional_4.png" aria-label="Open full-size image: Conditional, \(w=0\)"><img src="./images/conditional_4.png" width="512" height="512" alt="Generated portrait of a person in a pale shirt" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Conditional, \(w=0\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/cfg_4.png" aria-label="Open full-size image: CFG, \(w=7\)"><img src="./images/cfg_4.png" width="512" height="512" alt="Generated headshot with short dark hair and a blue shirt" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">CFG, \(w=7\)</p></div>
+</div><figcaption><span class="caption-label">Figure 21. Guidance comparison, seed 184.</span> Both images use “a high quality photo” and 50 Euler steps.</figcaption></figure>
+<p>Across these five pairs, guidance improves eyes, mouths, hair, and lighting, especially for seeds 180 and 183. It also changes the depicted person. Both sets favor portraits, but the guided outputs are more similar centered headshots with smooth backgrounds, reducing compositional variety.</p>
+</section>
+<section class="report-section" id="part-31" aria-labelledby="part-31-heading"><h2 id="part-31-heading">3.1 Image-to-image editing</h2>
+<p>For each image, I interpolate it with noise at the selected starting time and integrate to \(t=1\) using the guided velocity. The seven starting times are \(0.02,0.04,0.06,0.10,0.14,0.25,0.50\). A smaller starting time leaves less input information and gives the model more freedom to alter the scene. Every sweep uses seed 180, \(h=0.02\), and \(w=7\).</p>
+<p class="prompt"><strong>Prompt:</strong> “a high quality photo”</p>
+<h3>Campanile</h3>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_campanile_00.png" aria-label="Open full-size image: Original input"><img src="./images/edit_campanile_00.png" width="512" height="512" alt="Prepared original input: Campanile" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original input</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_campanile_t0.02.png" aria-label="Open full-size image: Starting time \(t=0.02\)"><img src="./images/edit_campanile_t0.02.png" width="512" height="512" alt="Campanile, reconstructed from starting time 0.02" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.02\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_campanile_t0.04.png" aria-label="Open full-size image: Starting time \(t=0.04\)"><img src="./images/edit_campanile_t0.04.png" width="512" height="512" alt="Campanile, reconstructed from starting time 0.04" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.04\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_campanile_t0.06.png" aria-label="Open full-size image: Starting time \(t=0.06\)"><img src="./images/edit_campanile_t0.06.png" width="512" height="512" alt="Campanile, reconstructed from starting time 0.06" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.06\)</p></div>
+</div><figcaption><span class="caption-label">Figure 22. Campanile: most noise.</span> Original and the three lowest starting times.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_campanile_t0.10.png" aria-label="Open full-size image: Starting time \(t=0.10\)"><img src="./images/edit_campanile_t0.10.png" width="512" height="512" alt="Campanile, reconstructed from starting time 0.10" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.10\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_campanile_t0.14.png" aria-label="Open full-size image: Starting time \(t=0.14\)"><img src="./images/edit_campanile_t0.14.png" width="512" height="512" alt="Campanile, reconstructed from starting time 0.14" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.14\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_campanile_t0.25.png" aria-label="Open full-size image: Starting time \(t=0.25\)"><img src="./images/edit_campanile_t0.25.png" width="512" height="512" alt="Campanile, reconstructed from starting time 0.25" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.25\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_campanile_t0.50.png" aria-label="Open full-size image: Starting time \(t=0.50\)"><img src="./images/edit_campanile_t0.50.png" width="512" height="512" alt="Campanile, reconstructed from starting time 0.50" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.50\)</p></div>
+</div><figcaption><span class="caption-label">Figure 23. Campanile: more input retained.</span> The remaining four starting times use the same initial noise and prompt.</figcaption></figure>
+<p>At the lowest starting times, the tower becomes a smooth white cylinder or tapered pole against a blue sky. A dark window appears around t = 0.10–0.14, the belfry returns at t = 0.25, and t = 0.50 recovers much of the clock and masonry.</p>
+<h3>Cat photograph</h3>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_cat_00.png" aria-label="Open full-size image: Original input"><img src="./images/edit_cat_00.png" width="512" height="512" alt="Prepared original input: Cat photograph" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original input</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_cat_t0.02.png" aria-label="Open full-size image: Starting time \(t=0.02\)"><img src="./images/edit_cat_t0.02.png" width="512" height="512" alt="Cat photograph, reconstructed from starting time 0.02" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.02\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_cat_t0.04.png" aria-label="Open full-size image: Starting time \(t=0.04\)"><img src="./images/edit_cat_t0.04.png" width="512" height="512" alt="Cat photograph, reconstructed from starting time 0.04" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.04\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_cat_t0.06.png" aria-label="Open full-size image: Starting time \(t=0.06\)"><img src="./images/edit_cat_t0.06.png" width="512" height="512" alt="Cat photograph, reconstructed from starting time 0.06" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.06\)</p></div>
+</div><figcaption><span class="caption-label">Figure 24. Cat photograph: most noise.</span> Original and the three lowest starting times.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_cat_t0.10.png" aria-label="Open full-size image: Starting time \(t=0.10\)"><img src="./images/edit_cat_t0.10.png" width="512" height="512" alt="Cat photograph, reconstructed from starting time 0.10" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.10\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_cat_t0.14.png" aria-label="Open full-size image: Starting time \(t=0.14\)"><img src="./images/edit_cat_t0.14.png" width="512" height="512" alt="Cat photograph, reconstructed from starting time 0.14" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.14\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_cat_t0.25.png" aria-label="Open full-size image: Starting time \(t=0.25\)"><img src="./images/edit_cat_t0.25.png" width="512" height="512" alt="Cat photograph, reconstructed from starting time 0.25" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.25\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_cat_t0.50.png" aria-label="Open full-size image: Starting time \(t=0.50\)"><img src="./images/edit_cat_t0.50.png" width="512" height="512" alt="Cat photograph, reconstructed from starting time 0.50" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.50\)</p></div>
+</div><figcaption><span class="caption-label">Figure 25. Cat photograph: more input retained.</span> The remaining four starting times use the same initial noise and prompt.</figcaption></figure>
+<p>At t = 0.02, the model produces a laptop scene; at t = 0.04–0.06, the pale curled shape becomes bedding. Around t = 0.10–0.14, white fabric and hand-like forms occupy the original cat’s position. A recognizable but very smooth cat returns at t = 0.25, and the fur becomes convincing at t = 0.50. The room’s neutral colors and horizontal support survive even when the subject changes completely.</p>
+<h3>Shirogane Blue Pond</h3>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_shirogane_blue_pond_00.png" aria-label="Open full-size image: Original input"><img src="./images/edit_shirogane_blue_pond_00.png" width="512" height="512" alt="Prepared original input: Shirogane Blue Pond" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original input</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_shirogane_blue_pond_t0.02.png" aria-label="Open full-size image: Starting time \(t=0.02\)"><img src="./images/edit_shirogane_blue_pond_t0.02.png" width="512" height="512" alt="Shirogane Blue Pond, reconstructed from starting time 0.02" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.02\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_shirogane_blue_pond_t0.04.png" aria-label="Open full-size image: Starting time \(t=0.04\)"><img src="./images/edit_shirogane_blue_pond_t0.04.png" width="512" height="512" alt="Shirogane Blue Pond, reconstructed from starting time 0.04" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.04\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_shirogane_blue_pond_t0.06.png" aria-label="Open full-size image: Starting time \(t=0.06\)"><img src="./images/edit_shirogane_blue_pond_t0.06.png" width="512" height="512" alt="Shirogane Blue Pond, reconstructed from starting time 0.06" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.06\)</p></div>
+</div><figcaption><span class="caption-label">Figure 26. Shirogane Blue Pond: most noise.</span> Original and the three lowest starting times.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_shirogane_blue_pond_t0.10.png" aria-label="Open full-size image: Starting time \(t=0.10\)"><img src="./images/edit_shirogane_blue_pond_t0.10.png" width="512" height="512" alt="Shirogane Blue Pond, reconstructed from starting time 0.10" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.10\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_shirogane_blue_pond_t0.14.png" aria-label="Open full-size image: Starting time \(t=0.14\)"><img src="./images/edit_shirogane_blue_pond_t0.14.png" width="512" height="512" alt="Shirogane Blue Pond, reconstructed from starting time 0.14" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.14\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_shirogane_blue_pond_t0.25.png" aria-label="Open full-size image: Starting time \(t=0.25\)"><img src="./images/edit_shirogane_blue_pond_t0.25.png" width="512" height="512" alt="Shirogane Blue Pond, reconstructed from starting time 0.25" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.25\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_shirogane_blue_pond_t0.50.png" aria-label="Open full-size image: Starting time \(t=0.50\)"><img src="./images/edit_shirogane_blue_pond_t0.50.png" width="512" height="512" alt="Shirogane Blue Pond, reconstructed from starting time 0.50" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.50\)</p></div>
+</div><figcaption><span class="caption-label">Figure 27. Shirogane Blue Pond: more input retained.</span> The remaining four starting times use the same initial noise and prompt.</figcaption></figure>
+<p>The smallest starting times reinterpret the red and turquoise bands as a monitor or a sign. At t = 0.06, the scene is mostly soft horizontal color; t = 0.10–0.14 recovers blurred tree silhouettes. Fine trunks and reflections return at t = 0.25–0.50.</p>
+</section>
+<section class="report-section" id="drawings" aria-labelledby="drawings-heading"><h2 id="drawings-heading">Hand-drawn and web images</h2>
+<p>The credited <a href="#references">Shirogane Blue Pond photograph</a> is my web image as well as my second test image; its full seven-time sweep is shown directly above. I apply the same generic-photo procedure to the two supplied drawings below. The monochrome drawing’s white margins preserve its full tall composition.</p>
+<h3>Monochrome figure drawing</h3>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_figure_drawing_00.png" aria-label="Open full-size image: Original input"><img src="./images/edit_figure_drawing_00.png" width="512" height="512" alt="Prepared original input: Monochrome figure drawing" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original input</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_figure_drawing_t0.02.png" aria-label="Open full-size image: Starting time \(t=0.02\)"><img src="./images/edit_figure_drawing_t0.02.png" width="512" height="512" alt="Monochrome figure drawing, reconstructed from starting time 0.02" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.02\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_figure_drawing_t0.04.png" aria-label="Open full-size image: Starting time \(t=0.04\)"><img src="./images/edit_figure_drawing_t0.04.png" width="512" height="512" alt="Monochrome figure drawing, reconstructed from starting time 0.04" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.04\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_figure_drawing_t0.06.png" aria-label="Open full-size image: Starting time \(t=0.06\)"><img src="./images/edit_figure_drawing_t0.06.png" width="512" height="512" alt="Monochrome figure drawing, reconstructed from starting time 0.06" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.06\)</p></div>
+</div><figcaption><span class="caption-label">Figure 28. Monochrome figure drawing: most noise.</span> Original and the three lowest starting times.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_figure_drawing_t0.10.png" aria-label="Open full-size image: Starting time \(t=0.10\)"><img src="./images/edit_figure_drawing_t0.10.png" width="512" height="512" alt="Monochrome figure drawing, reconstructed from starting time 0.10" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.10\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_figure_drawing_t0.14.png" aria-label="Open full-size image: Starting time \(t=0.14\)"><img src="./images/edit_figure_drawing_t0.14.png" width="512" height="512" alt="Monochrome figure drawing, reconstructed from starting time 0.14" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.14\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_figure_drawing_t0.25.png" aria-label="Open full-size image: Starting time \(t=0.25\)"><img src="./images/edit_figure_drawing_t0.25.png" width="512" height="512" alt="Monochrome figure drawing, reconstructed from starting time 0.25" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.25\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_figure_drawing_t0.50.png" aria-label="Open full-size image: Starting time \(t=0.50\)"><img src="./images/edit_figure_drawing_t0.50.png" width="512" height="512" alt="Monochrome figure drawing, reconstructed from starting time 0.50" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.50\)</p></div>
+</div><figcaption><span class="caption-label">Figure 29. Monochrome figure drawing: more input retained.</span> The remaining four starting times use the same initial noise and prompt.</figcaption></figure>
+<p>At t = 0.02–0.10, the narrow dark drawing is reinterpreted as a metallic object or apparatus on a white background. A seated human figure begins to emerge at t = 0.14; t = 0.25 returns to the original arrangement with smoother shading, and t = 0.50 preserves more of the drawn lines. The low-time results look more photographic but lose the figures.</p>
+<h3>Color portrait drawing</h3>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_portrait_drawing_00.png" aria-label="Open full-size image: Original input"><img src="./images/edit_portrait_drawing_00.png" width="512" height="512" alt="Prepared original input: Color portrait drawing" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original input</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_portrait_drawing_t0.02.png" aria-label="Open full-size image: Starting time \(t=0.02\)"><img src="./images/edit_portrait_drawing_t0.02.png" width="512" height="512" alt="Color portrait drawing, reconstructed from starting time 0.02" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.02\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_portrait_drawing_t0.04.png" aria-label="Open full-size image: Starting time \(t=0.04\)"><img src="./images/edit_portrait_drawing_t0.04.png" width="512" height="512" alt="Color portrait drawing, reconstructed from starting time 0.04" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.04\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_portrait_drawing_t0.06.png" aria-label="Open full-size image: Starting time \(t=0.06\)"><img src="./images/edit_portrait_drawing_t0.06.png" width="512" height="512" alt="Color portrait drawing, reconstructed from starting time 0.06" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.06\)</p></div>
+</div><figcaption><span class="caption-label">Figure 30. Color portrait drawing: most noise.</span> Original and the three lowest starting times.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_portrait_drawing_t0.10.png" aria-label="Open full-size image: Starting time \(t=0.10\)"><img src="./images/edit_portrait_drawing_t0.10.png" width="512" height="512" alt="Color portrait drawing, reconstructed from starting time 0.10" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.10\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_portrait_drawing_t0.14.png" aria-label="Open full-size image: Starting time \(t=0.14\)"><img src="./images/edit_portrait_drawing_t0.14.png" width="512" height="512" alt="Color portrait drawing, reconstructed from starting time 0.14" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.14\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_portrait_drawing_t0.25.png" aria-label="Open full-size image: Starting time \(t=0.25\)"><img src="./images/edit_portrait_drawing_t0.25.png" width="512" height="512" alt="Color portrait drawing, reconstructed from starting time 0.25" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.25\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/edit_portrait_drawing_t0.50.png" aria-label="Open full-size image: Starting time \(t=0.50\)"><img src="./images/edit_portrait_drawing_t0.50.png" width="512" height="512" alt="Color portrait drawing, reconstructed from starting time 0.50" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.50\)</p></div>
+</div><figcaption><span class="caption-label">Figure 31. Color portrait drawing: more input retained.</span> The remaining four starting times use the same initial noise and prompt.</figcaption></figure>
+<p>The lowest times replace the drawing with photographs of a different person. At t = 0.10, the output becomes a more photographic portrait with glasses, white clothing, a red book, and the original red background. Larger starting times increasingly preserve the original stylized face and soft painted surfaces.</p>
+</section>
+<section class="report-section" id="part-32" aria-labelledby="part-32-heading"><h2 id="part-32-heading">3.2 Text-guided editing</h2>
+<p>I repeat the editing sweeps with the same noise seeds and replace the generic prompt with one describing the desired transformation.</p>
+<h3>Campanile → rocket</h3>
+<p class="prompt"><strong>Prompt:</strong> “a photograph of a rocket on a launch pad”</p>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_campanile_00.png" aria-label="Open full-size image: Original input"><img src="./images/text_edit_campanile_00.png" width="512" height="512" alt="Prepared original input: Campanile → rocket" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original input</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_campanile_t0.02.png" aria-label="Open full-size image: Starting time \(t=0.02\)"><img src="./images/text_edit_campanile_t0.02.png" width="512" height="512" alt="Campanile → rocket, reconstructed from starting time 0.02" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.02\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_campanile_t0.04.png" aria-label="Open full-size image: Starting time \(t=0.04\)"><img src="./images/text_edit_campanile_t0.04.png" width="512" height="512" alt="Campanile → rocket, reconstructed from starting time 0.04" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.04\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_campanile_t0.06.png" aria-label="Open full-size image: Starting time \(t=0.06\)"><img src="./images/text_edit_campanile_t0.06.png" width="512" height="512" alt="Campanile → rocket, reconstructed from starting time 0.06" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.06\)</p></div>
+</div><figcaption><span class="caption-label">Figure 32. Campanile → rocket: most noise.</span> Original and the three lowest starting times.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_campanile_t0.10.png" aria-label="Open full-size image: Starting time \(t=0.10\)"><img src="./images/text_edit_campanile_t0.10.png" width="512" height="512" alt="Campanile → rocket, reconstructed from starting time 0.10" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.10\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_campanile_t0.14.png" aria-label="Open full-size image: Starting time \(t=0.14\)"><img src="./images/text_edit_campanile_t0.14.png" width="512" height="512" alt="Campanile → rocket, reconstructed from starting time 0.14" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.14\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_campanile_t0.25.png" aria-label="Open full-size image: Starting time \(t=0.25\)"><img src="./images/text_edit_campanile_t0.25.png" width="512" height="512" alt="Campanile → rocket, reconstructed from starting time 0.25" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.25\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_campanile_t0.50.png" aria-label="Open full-size image: Starting time \(t=0.50\)"><img src="./images/text_edit_campanile_t0.50.png" width="512" height="512" alt="Campanile → rocket, reconstructed from starting time 0.50" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.50\)</p></div>
+</div><figcaption><span class="caption-label">Figure 33. Campanile → rocket: more input retained.</span> The remaining four starting times use the same initial noise and prompt.</figcaption></figure>
+<p>At t = 0.02–0.06, rockets and launch structures dominate. The middle times retain the original tall framing while replacing the tower’s surface with a smooth rocket-like body. By t = 0.25 the belfry and clock begin to return, and t = 0.50 is close to the original Campanile.</p>
+<h3>Cat → red panda</h3>
+<p class="prompt"><strong>Prompt:</strong> “a high quality photograph of a fluffy red panda sleeping curled up on a wooden table”</p>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_cat_00.png" aria-label="Open full-size image: Original input"><img src="./images/text_edit_cat_00.png" width="512" height="512" alt="Prepared original input: Cat → red panda" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original input</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_cat_t0.02.png" aria-label="Open full-size image: Starting time \(t=0.02\)"><img src="./images/text_edit_cat_t0.02.png" width="512" height="512" alt="Cat → red panda, reconstructed from starting time 0.02" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.02\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_cat_t0.04.png" aria-label="Open full-size image: Starting time \(t=0.04\)"><img src="./images/text_edit_cat_t0.04.png" width="512" height="512" alt="Cat → red panda, reconstructed from starting time 0.04" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.04\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_cat_t0.06.png" aria-label="Open full-size image: Starting time \(t=0.06\)"><img src="./images/text_edit_cat_t0.06.png" width="512" height="512" alt="Cat → red panda, reconstructed from starting time 0.06" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.06\)</p></div>
+</div><figcaption><span class="caption-label">Figure 34. Cat → red panda: most noise.</span> Original and the three lowest starting times.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_cat_t0.10.png" aria-label="Open full-size image: Starting time \(t=0.10\)"><img src="./images/text_edit_cat_t0.10.png" width="512" height="512" alt="Cat → red panda, reconstructed from starting time 0.10" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.10\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_cat_t0.14.png" aria-label="Open full-size image: Starting time \(t=0.14\)"><img src="./images/text_edit_cat_t0.14.png" width="512" height="512" alt="Cat → red panda, reconstructed from starting time 0.14" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.14\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_cat_t0.25.png" aria-label="Open full-size image: Starting time \(t=0.25\)"><img src="./images/text_edit_cat_t0.25.png" width="512" height="512" alt="Cat → red panda, reconstructed from starting time 0.25" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.25\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_cat_t0.50.png" aria-label="Open full-size image: Starting time \(t=0.50\)"><img src="./images/text_edit_cat_t0.50.png" width="512" height="512" alt="Cat → red panda, reconstructed from starting time 0.50" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.50\)</p></div>
+</div><figcaption><span class="caption-label">Figure 35. Cat → red panda: more input retained.</span> The remaining four starting times use the same initial noise and prompt.</figcaption></figure>
+<p>The low-time outputs clearly depict a sleeping red panda, but change the pose and table. At t = 0.14–0.25, the animal keeps the original cat’s curled body and placement while gaining a red-panda face and reddish fur. At t = 0.50, most of the pale cat body remains and the change is concentrated around the face.</p>
+<h3>Autumn pond → waterfall and turquoise lake</h3>
+<p class="prompt"><strong>Prompt:</strong> “a high quality photograph of a waterfall cascading over rocky cliffs into a turquoise lake, surrounded by red and orange autumn trees”</p>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_shirogane_blue_pond_00.png" aria-label="Open full-size image: Original input"><img src="./images/text_edit_shirogane_blue_pond_00.png" width="512" height="512" alt="Prepared original input: Autumn pond → waterfall and turquoise lake" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original input</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_shirogane_blue_pond_t0.02.png" aria-label="Open full-size image: Starting time \(t=0.02\)"><img src="./images/text_edit_shirogane_blue_pond_t0.02.png" width="512" height="512" alt="Autumn pond → waterfall and turquoise lake, reconstructed from starting time 0.02" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.02\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_shirogane_blue_pond_t0.04.png" aria-label="Open full-size image: Starting time \(t=0.04\)"><img src="./images/text_edit_shirogane_blue_pond_t0.04.png" width="512" height="512" alt="Autumn pond → waterfall and turquoise lake, reconstructed from starting time 0.04" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.04\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_shirogane_blue_pond_t0.06.png" aria-label="Open full-size image: Starting time \(t=0.06\)"><img src="./images/text_edit_shirogane_blue_pond_t0.06.png" width="512" height="512" alt="Autumn pond → waterfall and turquoise lake, reconstructed from starting time 0.06" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.06\)</p></div>
+</div><figcaption><span class="caption-label">Figure 36. Autumn pond → waterfall and turquoise lake: most noise.</span> Original and the three lowest starting times.</figcaption></figure>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_shirogane_blue_pond_t0.10.png" aria-label="Open full-size image: Starting time \(t=0.10\)"><img src="./images/text_edit_shirogane_blue_pond_t0.10.png" width="512" height="512" alt="Autumn pond → waterfall and turquoise lake, reconstructed from starting time 0.10" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.10\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_shirogane_blue_pond_t0.14.png" aria-label="Open full-size image: Starting time \(t=0.14\)"><img src="./images/text_edit_shirogane_blue_pond_t0.14.png" width="512" height="512" alt="Autumn pond → waterfall and turquoise lake, reconstructed from starting time 0.14" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.14\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_shirogane_blue_pond_t0.25.png" aria-label="Open full-size image: Starting time \(t=0.25\)"><img src="./images/text_edit_shirogane_blue_pond_t0.25.png" width="512" height="512" alt="Autumn pond → waterfall and turquoise lake, reconstructed from starting time 0.25" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.25\)</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/text_edit_shirogane_blue_pond_t0.50.png" aria-label="Open full-size image: Starting time \(t=0.50\)"><img src="./images/text_edit_shirogane_blue_pond_t0.50.png" width="512" height="512" alt="Autumn pond → waterfall and turquoise lake, reconstructed from starting time 0.50" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Starting time \(t=0.50\)</p></div>
+</div><figcaption><span class="caption-label">Figure 37. Autumn pond → waterfall and turquoise lake: more input retained.</span> The remaining four starting times use the same initial noise and prompt.</figcaption></figure>
+<p>At t = 0.02, the scene is largely rebuilt around rocky cliffs and a waterfall, with stronger turquoise saturation. From t = 0.04 to 0.14, several cascades appear below the red and orange treeline while more of the autumn setting is retained. The change is weaker at t = 0.25, and t = 0.50 stays close to the original pond.</p>
+</section>
+<section class="report-section" id="part-33" aria-labelledby="part-33-heading"><h2 id="part-33-heading">3.3 Visual anagrams</h2>
+<p>Let \(R\) rotate an image by 180°. At every step, I predict one guided velocity in the upright view and another in the rotated view. I rotate the second prediction back before averaging:</p>
+<div class="equation">\[v=\frac{1}{2}\left[v_{\mathrm{CFG}}(x_t,t,p_1)+R\!\left(v_{\mathrm{CFG}}(R(x_t),t,p_2)\right)\right].\]</div>
+<p>Both spatial axes are flipped by the rotation. I integrate this averaged field from noise with 50 Euler steps.</p>
+<h3>Old man / campfire</h3>
+<p>Upright prompt: “an oil painting of an old man”. Rotated prompt: “an oil painting of people around a campfire”. Seed 180.</p>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/anagram_0.png" aria-label="Open full-size image: Upright"><img src="./images/anagram_0.png" width="512" height="512" alt="an oil painting of an old man" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Upright</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/anagram_0_rotated.png" aria-label="Open full-size image: Rotated 180°"><img src="./images/anagram_0_rotated.png" width="512" height="512" alt="an oil painting of people around a campfire" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Rotated 180°</p></div>
+</div><figcaption><span class="caption-label">Figure 38. Visual anagram 1.</span> The second image is a 180° rotation of the first.</figcaption></figure>
+<p>The upright image reads as an old man lit by warm orange light. After rotation, the bright forehead becomes the campfire, while smaller faces near the beard become people gathered above it.</p>
+<h3>Mountain village / horse</h3>
+<p>Upright prompt: “a lithograph of a snowy mountain village”. Rotated prompt: “a lithograph of a horse”. Seed 181.</p>
+<figure class="photo-slot report-figure "><div class="photo-grid photo-grid--pair">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/anagram_1.png" aria-label="Open full-size image: Upright"><img src="./images/anagram_1.png" width="512" height="512" alt="a lithograph of a snowy mountain village" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Upright</p></div>
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/anagram_1_rotated.png" aria-label="Open full-size image: Rotated 180°"><img src="./images/anagram_1_rotated.png" width="512" height="512" alt="a lithograph of a horse" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Rotated 180°</p></div>
+</div><figcaption><span class="caption-label">Figure 39. Visual anagram 2.</span> The second image is a 180° rotation of the first.</figcaption></figure>
+<p>The upright view contains snowy roofs, fences, and mountain peaks. Rotating it reveals a horse with a distinct face and front legs. The separation is less convincing than in the first example: the horse’s upside-down face is still visible among the village roofs, and both views have very faint contrast.</p>
+</section>
+<section class="report-section" id="part-34" aria-labelledby="part-34-heading"><h2 id="part-34-heading">3.4 Hybrid images</h2>
+<p>I combine low frequencies of one guided velocity with high frequencies of a second guided velocity, then use this composite field in every Euler update:</p>
+<div class="equation">\[v=G_\sigma*v_{\mathrm{distant}}+\left(v_{\mathrm{close}}-G_\sigma*v_{\mathrm{close}}\right).\]</div>
+<p>The Gaussian uses \(\sigma=16\) pixels and a 265 × 265 kernel at 512 × 512. Each example starts from noise and uses 50 Euler steps. The 64 × 64 preview is a downsampled view of the final image, approximating a more distant viewing scale.</p>
+<p>At blur radii of 4 and 2 pixels, the skull dominated both sizes. I kept \(\sigma=16\) for both examples.</p>
+<h3>Skull / white roses</h3>
+<p>Distant prompt: “a black and white charcoal drawing of a human skull seen from the front, large hollow black eye sockets, centered on a plain black background”. Close prompt: “a black and white charcoal drawing of a dense bouquet of white roses, intricate small petals and dark leaves, centered on a plain black background”. Seed 180.</p>
+<figure class="photo-slot report-figure hybrid-result">
+<div class="photo-canvas hybrid-full"><a href="./images/hybrid_0.png" aria-label="Open full-size hybrid 1"><img src="./images/hybrid_0.png" width="512" height="512" alt="Generated hybrid 1, intended to combine a black and white charcoal drawing of a human skull seen from the front, large hollow black eye sockets, centered on a plain black background with a black and white charcoal drawing of a dense bouquet of white roses, intricate small petals and dark leaves, centered on a plain black background" loading="lazy" decoding="async"></a></div>
+<div class="distant-view"><a href="./images/hybrid_0_distant.png" aria-label="Open 64 pixel distant view"><img src="./images/hybrid_0_distant.png" width="64" height="64" alt="The same hybrid downsampled to 64 by 64 pixels" loading="lazy" decoding="async"></a><p class="panel-label">Distant view · 64 × 64</p></div>
+<figcaption><span class="caption-label">Figure 40. Hybrid 1 at two viewing scales.</span> Open the large image for its native 512 × 512 view.</figcaption></figure>
+<p>At full size, individual white roses, curled petals, and dark leaves are distinct. In the small preview, the flowers merge into the skull’s outline, eye sockets, and nose. The skull arrangement remains visible up close, so the effect is a partial hybrid.</p>
+<h3>Lion / sunflowers</h3>
+<p>Distant prompt: “an oil painting of a lion&#x27;s face”. Close prompt: “an oil painting of a bouquet of sunflowers”. Seed 186.</p>
+<figure class="photo-slot report-figure hybrid-result">
+<div class="photo-canvas hybrid-full"><a href="./images/hybrid_1.png" aria-label="Open full-size hybrid 2"><img src="./images/hybrid_1.png" width="512" height="512" alt="Generated hybrid 2, intended to combine an oil painting of a lion&#x27;s face with an oil painting of a bouquet of sunflowers" loading="lazy" decoding="async"></a></div>
+<div class="distant-view"><a href="./images/hybrid_1_distant.png" aria-label="Open 64 pixel distant view"><img src="./images/hybrid_1_distant.png" width="64" height="64" alt="The same hybrid downsampled to 64 by 64 pixels" loading="lazy" decoding="async"></a><p class="panel-label">Distant view · 64 × 64</p></div>
+<figcaption><span class="caption-label">Figure 41. Hybrid 2 at two viewing scales.</span> Open the large image for its native 512 × 512 view.</figcaption></figure>
+<p>The large image emphasizes individual sunflower petals and the central bouquet. In the small preview, the two dark upper flower centers and warm surrounding shape suggest a lion’s eyes and mane, while petals occupy the muzzle. The flowers remain prominent at both scales, so the distant lion interpretation is suggestive rather than unambiguous.</p>
+</section>
+<section class="report-section" id="reflection" aria-labelledby="reflection-heading"><h2 id="reflection-heading">Part A · What I learned</h2>
+<p>It was really interesting to see how classifier-free guidance works and how much it changed the generated images. I learned how the starting noise level controls how much of the original image stays in an edit. I was surprised that the hybrid images could show different subjects at different viewing distances, even though the effect wasn’t always clear. The hybrids and rotating anagrams helped me understand image geometry better, especially how the same shapes and details can fit together to look like different things.</p>
+</section>
+<section class="report-section" id="part-b" aria-labelledby="part-b-heading"><h2 id="part-b-heading">Part B · Flow matching from scratch</h2>
+<p>For these experiments, I train on the 60,000 MNIST training images and reserve the 10,000 test images for denoising examples. Each image is a single 28 × 28 grayscale channel with values in \([0,1]\). No pretrained weights are used in Part B. Training images are shuffled, and fresh Gaussian noise is drawn when each batch is processed.</p>
+<p>The architecture follows the course’s UNet diagrams and starter interfaces. I use fixed seed 180 for initialization and sampling.</p>
+</section>
+<section class="report-section" id="b-11" aria-labelledby="b-11-heading"><h2 id="b-11-heading">1.1 The UNet</h2>
+<p>The encoder reduces the spatial resolution twice, from 28 × 28 to 14 × 14 and then 7 × 7. Average pooling compresses the last feature map to 1 × 1. The decoder expands it again and concatenates matching encoder features along the channel dimension, preserving local information through the skip connections.</p>
+<p>The convolution blocks use batch normalization and GELU activations. Downsampling uses stride-two convolutions; upsampling uses transposed convolutions. A final convolution returns one output channel. The hidden width is \(D=128\) for the single-step denoisers and \(D=64\) for both flow models.</p>
+<div class="scroll-wrapper"><table class="capture-table"><caption>UNet feature sizes, written as channels × height × width.</caption><thead><tr><th scope="col">Stage</th><th scope="col">Output shape</th></tr></thead><tbody>
+<tr><th scope="row">Input</th><td>\(1\times28\times28\)</td></tr>
+<tr><th scope="row">Initial convolution block</th><td>\(D\times28\times28\)</td></tr>
+<tr><th scope="row">First down block</th><td>\(D\times14\times14\)</td></tr>
+<tr><th scope="row">Second down block</th><td>\(2D\times7\times7\)</td></tr>
+<tr><th scope="row">Average-pooling bottleneck</th><td>\(2D\times1\times1\)</td></tr>
+<tr><th scope="row">Unflatten</th><td>\(2D\times7\times7\)</td></tr>
+<tr><th scope="row">First up block, after concatenation</th><td>\(D\times14\times14\)</td></tr>
+<tr><th scope="row">Second up block, after concatenation</th><td>\(D\times28\times28\)</td></tr>
+<tr><th scope="row">Final convolution</th><td>\(1\times28\times28\)</td></tr>
+</tbody></table></div>
+</section>
+<section class="report-section" id="b-12" aria-labelledby="b-12-heading"><h2 id="b-12-heading">1.2 Noising MNIST</h2>
+<p>For a clean digit \(x\), I add Gaussian noise without reducing the clean signal:</p>
+<div class="equation">\[z=x+\sigma\epsilon,\qquad\epsilon\sim\mathcal N(0,I).\]</div>
+<p>I hold the image and sampled noise fixed while varying \(\sigma\). The noisy tensors remain unclipped for the model; only the displayed images are clipped to \([0,1]\).</p>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/noising.png" aria-label="Open full-size image: One MNIST test digit with progressively stronger Gaussian noise across seven labeled columns"><img src="./images/partb/noising.png" width="1440" height="240" alt="One MNIST test digit with progressively stronger Gaussian noise across seven labeled columns" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 42. MNIST at seven noise levels.</span> The same digit and noise tensor are shown at σ = 0.0, 0.2, 0.4, 0.5, 0.6, 0.8, and 1.0.</figcaption></figure>
+<p>With the noise pattern fixed, increasing σ makes bright noise pixels more prominent around the 7’s strokes. The digit is easy to recognize at low noise levels and much harder to distinguish at σ = 1.0.</p>
+</section>
+<section class="report-section" id="b-121" aria-labelledby="b-121-heading"><h2 id="b-121-heading">1.2.1 Training the denoiser</h2>
+<p>The single-step network predicts the clean image directly and minimizes mean squared error:</p>
+<div class="equation">\[\mathcal L_{\mathrm{denoise}}=\mathbb E_{x,\epsilon}\!\left[\|D_\theta(x+0.5\epsilon)-x\|_2^2\right].\]</div>
+<p>I train for five epochs with hidden width 128, batch size 256, and Adam at a constant learning rate of \(10^{-4}\). The epoch-one and epoch-five comparisons use the same test digits and the same noise at \(\sigma=0.5\).</p>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/denoise_loss.png" aria-label="Open full-size image: Training MSE over all five denoiser epochs, with a 100-step running mean"><img src="./images/partb/denoise_loss.png" width="960" height="360" alt="Training MSE over all five denoiser epochs, with a 100-step running mean" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 43. Single-step denoising loss.</span> The thin curve shows batch MSE; the thicker curve is a trailing average over 100 optimizer steps.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/denoise_epoch_1.png" aria-label="Open full-size image: Ten MNIST test digits, their sigma 0.5 noisy versions, and reconstructions after epoch 1"><img src="./images/partb/denoise_epoch_1.png" width="1440" height="413" alt="Ten MNIST test digits, their sigma 0.5 noisy versions, and reconstructions after epoch 1" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 44. Denoising after epoch 1.</span> Rows show clean test digits, their noisy inputs, and the network reconstructions.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/denoise_epoch_5.png" aria-label="Open full-size image: Ten MNIST test digits, their sigma 0.5 noisy versions, and reconstructions after epoch 5"><img src="./images/partb/denoise_epoch_5.png" width="1440" height="413" alt="Ten MNIST test digits, their sigma 0.5 noisy versions, and reconstructions after epoch 5" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 45. Denoising after epoch 5.</span> Rows show clean test digits, their noisy inputs, and the network reconstructions.</figcaption></figure>
+<p>Most digits are already recognizable after one epoch. By epoch five, the reconstructions have cleaner backgrounds and more consistent stroke contours, although some strokes differ from the clean targets. The loss drops sharply at the beginning and then improves more gradually.</p>
+</section>
+<section class="report-section" id="b-122" aria-labelledby="b-122-heading"><h2 id="b-122-heading">1.2.2 Other noise levels</h2>
+<p>The denoiser was trained only at \(\sigma=0.5\). I keep the test digits and underlying noise fixed, vary its amplitude, and evaluate the same epoch-five checkpoint without further training.</p>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/ood_sigma_0.0.png" aria-label="Open full-size image: MNIST denoising results at noise standard deviation 0.0"><img src="./images/partb/ood_sigma_0.0.png" width="1440" height="413" alt="MNIST denoising results at noise standard deviation 0.0" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 46. Denoising at σ = 0.0.</span> Rows show clean digits, noisy inputs, and reconstructions from the checkpoint trained at σ = 0.5.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/ood_sigma_0.2.png" aria-label="Open full-size image: MNIST denoising results at noise standard deviation 0.2"><img src="./images/partb/ood_sigma_0.2.png" width="1440" height="413" alt="MNIST denoising results at noise standard deviation 0.2" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 47. Denoising at σ = 0.2.</span> Rows show clean digits, noisy inputs, and reconstructions from the checkpoint trained at σ = 0.5.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/ood_sigma_0.4.png" aria-label="Open full-size image: MNIST denoising results at noise standard deviation 0.4"><img src="./images/partb/ood_sigma_0.4.png" width="1440" height="413" alt="MNIST denoising results at noise standard deviation 0.4" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 48. Denoising at σ = 0.4.</span> Rows show clean digits, noisy inputs, and reconstructions from the checkpoint trained at σ = 0.5.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/ood_sigma_0.5.png" aria-label="Open full-size image: MNIST denoising results at noise standard deviation 0.5"><img src="./images/partb/ood_sigma_0.5.png" width="1440" height="413" alt="MNIST denoising results at noise standard deviation 0.5" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 49. Denoising at σ = 0.5.</span> Rows show clean digits, noisy inputs, and reconstructions from the checkpoint trained at σ = 0.5.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/ood_sigma_0.6.png" aria-label="Open full-size image: MNIST denoising results at noise standard deviation 0.6"><img src="./images/partb/ood_sigma_0.6.png" width="1440" height="413" alt="MNIST denoising results at noise standard deviation 0.6" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 50. Denoising at σ = 0.6.</span> Rows show clean digits, noisy inputs, and reconstructions from the checkpoint trained at σ = 0.5.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/ood_sigma_0.8.png" aria-label="Open full-size image: MNIST denoising results at noise standard deviation 0.8"><img src="./images/partb/ood_sigma_0.8.png" width="1440" height="413" alt="MNIST denoising results at noise standard deviation 0.8" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 51. Denoising at σ = 0.8.</span> Rows show clean digits, noisy inputs, and reconstructions from the checkpoint trained at σ = 0.5.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/ood_sigma_1.0.png" aria-label="Open full-size image: MNIST denoising results at noise standard deviation 1.0"><img src="./images/partb/ood_sigma_1.0.png" width="1440" height="413" alt="MNIST denoising results at noise standard deviation 1.0" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 52. Denoising at σ = 1.0.</span> Rows show clean digits, noisy inputs, and reconstructions from the checkpoint trained at σ = 0.5.</figcaption></figure>
+<p>For these test digits, σ = 0.0–0.6 mostly preserves readable shapes, although even the clean inputs are slightly smoothed. At σ = 0.8, extra strokes and residual background spots appear; the 1 in the third column becomes closer to a 7. At σ = 1.0, several contours are distorted or ambiguous.</p>
+</section>
+<section class="report-section" id="b-123" aria-labelledby="b-123-heading"><h2 id="b-123-heading">1.2.3 Denoising pure noise</h2>
+<p>I train a separate copy of the same width-128 network for five epochs with batch size 256 and Adam at \(10^{-4}\). Its input is now independent Gaussian noise, paired with a randomly encountered training digit as the target. The sample figures use 40 fixed noise inputs at both checkpoints.</p>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/pure_noise_loss.png" aria-label="Open full-size image: Training MSE for a single-step model mapping independent Gaussian noise to MNIST targets"><img src="./images/partb/pure_noise_loss.png" width="960" height="360" alt="Training MSE for a single-step model mapping independent Gaussian noise to MNIST targets" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 53. Pure-noise denoising loss.</span> Batch MSE and its trailing 100-step average across five epochs.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/pure_noise_epoch_1.png" aria-label="Open full-size image: Forty outputs from the pure-noise denoiser after epoch 1"><img src="./images/partb/pure_noise_epoch_1.png" width="1440" height="552" alt="Forty outputs from the pure-noise denoiser after epoch 1" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 54. Pure-noise outputs after epoch 1.</span> The 40 inputs are independent Gaussian noise tensors; the same inputs are used at both checkpoints.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/pure_noise_epoch_5.png" aria-label="Open full-size image: Forty outputs from the pure-noise denoiser after epoch 5"><img src="./images/partb/pure_noise_epoch_5.png" width="1440" height="552" alt="Forty outputs from the pure-noise denoiser after epoch 5" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 55. Pure-noise outputs after epoch 5.</span> The 40 inputs are independent Gaussian noise tensors; the same inputs are used at both checkpoints.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/mnist_mean.png" aria-label="Open full-size image: Pixelwise mean of all 60000 MNIST training images"><img src="./images/partb/mnist_mean.png" width="1440" height="240" alt="Pixelwise mean of all 60000 MNIST training images" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 56. Mean MNIST training image.</span> The pixelwise average of the training set provides the centroid reference.</figcaption></figure>
+<p>Different noise inputs produce nearly identical blurred ovals with overlapping loops, closely resembling the mean training image. The epoch-five outputs are smoother than those from epoch one, but still lack distinct, varied digits. The loss quickly plateaus.</p>
+<p>For squared error, the best population prediction is the conditional mean. Here the input noise is independent of the target digit, so that mean is the same for every input:</p>
+<div class="equation">\[D^*(z)=\mathbb E[x\mid z]=\mathbb E[x]=\mu.\]</div>
+<div class="equation">\[\mathbb E\|a-x\|_2^2=\|a-\mu\|_2^2+\mathbb E\|x-\mu\|_2^2.\]</div>
+<p>The first term is minimized by predicting the dataset’s pixelwise mean for every input.</p>
+</section>
+<section class="report-section" id="b-21" aria-labelledby="b-21-heading"><h2 id="b-21-heading">2.1 Time conditioning</h2>
+<p>The flow network receives both an image and a time \(t\in[0,1]\). Two fully connected blocks, each with two linear layers and a GELU between them, map this scalar to channel vectors of sizes \(2D\) and \(D\). These vectors multiply the unflattened feature map and the output of the first up block, broadcasting over spatial dimensions.</p>
+<div class="equation">\[h_{\mathrm{unflatten}}\leftarrow h_{\mathrm{unflatten}}\odot T_1(t),\qquad h_{\mathrm{up1}}\leftarrow h_{\mathrm{up1}}\odot T_2(t).\]</div>
+<p>The output is a velocity field with the same shape as the image.</p>
+</section>
+<section class="report-section" id="b-22" aria-labelledby="b-22-heading"><h2 id="b-22-heading">2.2 Flow-matching training</h2>
+<p>For each training example, I independently sample Gaussian noise \(x_0\) and a uniform time \(t\), form a point on the straight path to the clean digit \(x_1\), and regress the path’s velocity:</p>
+<div class="equation">\[x_t=(1-t)x_0+t x_1,\qquad u_{\mathrm{target}}=x_1-x_0.\]</div>
+<div class="equation">\[\mathcal L_{\mathrm{flow}}=\mathbb E\!\left[\|u_\theta(x_t,t)-(x_1-x_0)\|_2^2\right].\]</div>
+<p>I train the width-64 network for ten epochs using batch size 64 and Adam. The learning rate starts at \(10^{-2}\) and is multiplied by \(0.1^{1/10}\) after each epoch. Noise and time are resampled for each batch.</p>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/time_loss.png" aria-label="Open full-size image: Time-conditioned flow-matching training loss over optimizer steps"><img src="./images/partb/time_loss.png" width="960" height="360" alt="Time-conditioned flow-matching training loss over optimizer steps" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 57. Time-conditioned flow loss.</span> Batch velocity MSE and its trailing 100-step average across ten epochs.</figcaption></figure>
+<p>After a large early spike, the flow loss drops quickly and then decreases gradually.</p>
+</section>
+<section class="report-section" id="b-23" aria-labelledby="b-23-heading"><h2 id="b-23-heading">2.3 Time-conditioned samples</h2>
+<p>Starting from Gaussian noise, I integrate the learned velocity from \(t=0\) to \(t=1\) with 50 Euler steps:</p>
+<div class="equation">\[x_{k+1}=x_k+\frac{1}{50}u_\theta\!\left(x_k,\frac{k}{50}\right),\qquad k=0,\ldots,49.\]</div>
+<p>The 40 starting noise tensors are held fixed across the epoch-one, epoch-five, and epoch-ten checkpoints. No digit label is supplied.</p>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/time_epoch_1.png" aria-label="Open full-size image: Forty MNIST samples generated by the time-conditioned flow model after epoch 1"><img src="./images/partb/time_epoch_1.png" width="1440" height="552" alt="Forty MNIST samples generated by the time-conditioned flow model after epoch 1" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 58. Time-conditioned samples after epoch 1.</span> Forty samples generated with 50 Euler steps and the same sampling seed.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/time_epoch_5.png" aria-label="Open full-size image: Forty MNIST samples generated by the time-conditioned flow model after epoch 5"><img src="./images/partb/time_epoch_5.png" width="1440" height="552" alt="Forty MNIST samples generated by the time-conditioned flow model after epoch 5" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 59. Time-conditioned samples after epoch 5.</span> Forty samples generated with 50 Euler steps and the same sampling seed.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/time_epoch_10.png" aria-label="Open full-size image: Forty MNIST samples generated by the time-conditioned flow model after epoch 10"><img src="./images/partb/time_epoch_10.png" width="1440" height="552" alt="Forty MNIST samples generated by the time-conditioned flow model after epoch 10" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 60. Time-conditioned samples after epoch 10.</span> Forty samples generated with 50 Euler steps and the same sampling seed.</figcaption></figure>
+<p>Each grid position uses the same starting noise. Epoch one has many fragmented or unreadable shapes; by epoch five, most have recognizable loops and connected strokes. Epoch ten refines them further, but several remain ambiguous, including the top-left sample. Most of the visible improvement occurs between epochs one and five.</p>
+</section>
+<section class="report-section" id="b-24" aria-labelledby="b-24-heading"><h2 id="b-24-heading">2.4 Class conditioning</h2>
+<p>I represent the requested digit as a ten-dimensional one-hot vector. Two additional fully connected blocks embed the class at the same decoder locations as the time embeddings. Class features scale the activations, while time features shift them:</p>
+<div class="equation">\[h_{\mathrm{unflatten}}\leftarrow C_1(c)\odot h_{\mathrm{unflatten}}+T_1(t),\qquad h_{\mathrm{up1}}\leftarrow C_2(c)\odot h_{\mathrm{up1}}+T_2(t).\]</div>
+<p>During training, I independently replace 10% of the one-hot vectors with an all-zero vector. This trains an unconditional branch; the zero vector is distinct from the one-hot vector for digit zero. During sampling, both predictions use the same image and time, and I combine them as</p>
+<div class="equation">\[u_{\mathrm{CFG}}=u_{\mathrm{uncond}}+\gamma\left(u_{\mathrm{cond}}-u_{\mathrm{uncond}}\right),\qquad\gamma=5.\]</div>
+<p>In this Part B convention, \(\gamma=1\) recovers the ordinary class-conditioned prediction.</p>
+</section>
+<section class="report-section" id="b-25" aria-labelledby="b-25-heading"><h2 id="b-25-heading">2.5 Class-conditioned training</h2>
+<p>The class-conditioned model uses the same flow target, hidden width 64, batch size 64, and ten-epoch schedule as the time-only model. Adam starts at \(10^{-2}\), with an exponential multiplier of \(0.1^{1/10}\) after every epoch. Class dropout is applied per training example.</p>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/class_loss.png" aria-label="Open full-size image: Training loss for the flow model conditioned on both time and digit class"><img src="./images/partb/class_loss.png" width="960" height="360" alt="Training loss for the flow model conditioned on both time and digit class" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 61. Class-conditioned flow loss.</span> Batch velocity MSE and its trailing 100-step average across ten epochs.</figcaption></figure>
+<p>The loss drops rapidly after its initial spike, then flattens.</p>
+</section>
+<section class="report-section" id="b-26" aria-labelledby="b-26-heading"><h2 id="b-26-heading">2.6 Class-conditioned samples</h2>
+<p>I generate four instances of each digit using 300 Euler steps and guidance scale \(\gamma=5\). Each row requests digits 0–9 in order, and the starting noise is held fixed across checkpoints.</p>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/class_epoch_1.png" aria-label="Open full-size image: Four samples per digit class from the class-conditioned model after epoch 1"><img src="./images/partb/class_epoch_1.png" width="1440" height="552" alt="Four samples per digit class from the class-conditioned model after epoch 1" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 62. Class-conditioned samples after epoch 1.</span> Each of the four rows requests digits 0–9 from left to right.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/class_epoch_5.png" aria-label="Open full-size image: Four samples per digit class from the class-conditioned model after epoch 5"><img src="./images/partb/class_epoch_5.png" width="1440" height="552" alt="Four samples per digit class from the class-conditioned model after epoch 5" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 63. Class-conditioned samples after epoch 5.</span> Each of the four rows requests digits 0–9 from left to right.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/class_epoch_10.png" aria-label="Open full-size image: Four samples per digit class from the class-conditioned model after epoch 10"><img src="./images/partb/class_epoch_10.png" width="1440" height="552" alt="Four samples per digit class from the class-conditioned model after epoch 10" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 64. Class-conditioned samples after epoch 10.</span> Each of the four rows requests digits 0–9 from left to right.</figcaption></figure>
+<p>Class labels already organize the epoch-one outputs into the requested columns, but several digits have broken or irregular strokes. By epochs five and ten, the four rows are much cleaner and the requested 0–9 sequence is readable. Class conditioning gives clearer control over digit identity in these grids; classifier accuracy was not measured.</p>
+</section>
+<section class="report-section" id="b-no-scheduler" aria-labelledby="b-no-scheduler-heading"><h2 id="b-no-scheduler-heading">Removing the learning-rate scheduler</h2>
+<p>I train a separate class-conditioned model from the same initialization, with the same data order and random seeds. I remove exponential decay and compensate by reducing Adam’s constant learning rate to \(10^{-3}\). Hidden width, batch size, ten-epoch training duration, class dropout, and sampling settings remain the same. This changes both the schedule and its initial learning rate; it is not a constant-\(10^{-2}\) ablation.</p>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/no_scheduler_loss.png" aria-label="Open full-size image: Training loss for the separately trained comparison run using a constant learning rate of 0.001"><img src="./images/partb/no_scheduler_loss.png" width="960" height="360" alt="Training loss for the separately trained comparison run using a constant learning rate of 0.001" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 65. Class-conditioned loss without a scheduler.</span> The learning rate is fixed at 10⁻³ for all ten epochs. Thin and thick curves show batch MSE and its trailing 100-step average.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/no_scheduler_epoch_1.png" aria-label="Open full-size image: Class-conditioned MNIST samples after epoch 1 of the constant-learning-rate run"><img src="./images/partb/no_scheduler_epoch_1.png" width="1440" height="552" alt="Class-conditioned MNIST samples after epoch 1 of the constant-learning-rate run" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 66. No-scheduler samples after epoch 1.</span> Four rows of digits 0–9, using the same sample noise, 300 Euler steps, and guidance scale 5 as the scheduled run.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/no_scheduler_epoch_5.png" aria-label="Open full-size image: Class-conditioned MNIST samples after epoch 5 of the constant-learning-rate run"><img src="./images/partb/no_scheduler_epoch_5.png" width="1440" height="552" alt="Class-conditioned MNIST samples after epoch 5 of the constant-learning-rate run" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 67. No-scheduler samples after epoch 5.</span> Four rows of digits 0–9, using the same sample noise, 300 Euler steps, and guidance scale 5 as the scheduled run.</figcaption></figure>
+<figure class="photo-slot report-figure partb-figure"><div class="photo-grid ">
+<div class="figure-panel">
+<div class="photo-canvas"><a href="./images/partb/no_scheduler_epoch_10.png" aria-label="Open full-size image: Class-conditioned MNIST samples after epoch 10 of the constant-learning-rate run"><img src="./images/partb/no_scheduler_epoch_10.png" width="1440" height="552" alt="Class-conditioned MNIST samples after epoch 10 of the constant-learning-rate run" loading="lazy" decoding="async"></a></div>
+</div>
+</div><figcaption><span class="caption-label">Figure 68. No-scheduler samples after epoch 10.</span> Four rows of digits 0–9, using the same sample noise, 300 Euler steps, and guidance scale 5 as the scheduled run.</figcaption></figure>
+<p>The lower constant learning rate produces readable class-conditioned samples even at epoch one. By epoch ten, both runs follow the requested digit columns with similar legibility and close training losses. The constant-rate outputs have some thinner strokes and a curled 1 in the last row; the scheduled run’s 1s are more uniform.</p>
+<div class="scroll-wrapper"><table class="capture-table"><caption>Mean batch velocity MSE in epoch ten, measured on the training set.</caption><thead><tr><th scope="col">Class-conditioned run</th><th scope="col">Training MSE</th></tr></thead><tbody>
+<tr><th scope="row">Exponential schedule</th><td>0.08495</td></tr>
+<tr><th scope="row">Constant learning rate 10⁻³</th><td>0.08481</td></tr>
+</tbody></table></div>
+</section>
+<section class="report-section" id="b-reflection" aria-labelledby="b-reflection-heading"><h2 id="b-reflection-heading">Part B · What I learned</h2>
+<p>I learned that for single-step denoisers, it only works when the input already contains the essence of a digit, but random noise just goes towards a combination of everything. To fix this, I learned how to do flow matching through class conditioning to make the requested class much clearer. It was super interesting to see how time only sampling can leave digits ambiguous.</p>
+</section>
+<section class="report-section" id="references" aria-labelledby="references-heading"><h2 id="references-heading">References and image credits</h2>
+<ol class="references">
+<li><a href="https://cal-cs180.github.io/fa26/hw/proj3-flow/parta.html">CS 180 Project 3, Part A</a>. Assignment equations, required settings, and experiment structure.</li>
+<li><a href="https://github.com/hgaurav2k/cs180-hw3-student-notebooks/blob/main/parta_updated.ipynb">Course starter notebook</a>. Pretrained model adapter, preprocessing helpers, and Campanile input. The anagrams use the course example prompt pairs; I selected the hybrid pairs through additional trials.</li>
+<li>Jarrett Kow / <a href="https://4kwallpapers.com/nature/shirogane-blue-pond-hokkaido-japan-red-trees-autumn-body-of-5766.html">4K Wallpapers: Shirogane Blue Pond, Hokkaido, Japan</a>. Source of the autumn pond photograph, center-cropped for these experiments.</li>
+<li>Thank you to my girlfriend for the sketches. The cat photograph was supplied by the student. The tall sketch is white-padded before resizing.</li>
+<li><a href="https://sde-image-editing.github.io/">SDEdit</a>, <a href="https://dangeng.github.io/visual_anagrams/">Visual Anagrams</a>, and <a href="https://dangeng.github.io/factorized_diffusion/">Factorized Diffusion</a>. Prior work underlying the course’s editing and illusion exercises.</li>
+<li><a href="https://cal-cs180.github.io/fa26/hw/proj3-flow/partb.html">CS 180 Project 3, Part B</a> and its <a href="https://github.com/hgaurav2k/cs180-hw3-student-notebooks/blob/main/partb.ipynb">starter notebook</a>. Source of the specified UNet architecture, conditioning diagrams, training algorithms, and experiment requirements.</li>
+<li><a href="https://docs.pytorch.org/vision/main/generated/torchvision.datasets.MNIST.html">MNIST through torchvision</a>. Source of the handwritten digit training and test images used throughout Part B.</li>
+<li>Olaf Ronneberger, Philipp Fischer, and Thomas Brox, <a href="https://arxiv.org/abs/1505.04597">U-Net: Convolutional Networks for Biomedical Image Segmentation</a> (2015). The underlying encoder–decoder and skip-connection architecture; this project uses the course’s smaller MNIST adaptation.</li>
+</ol>
+</section>
+</main><footer class="document-footer"><p>Bryan Li · CS 180 · Project 3, Parts A &amp; B</p><p class="no-print"><a href="../index.html">Return to portfolio</a></p></footer></body></html>

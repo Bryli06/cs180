@@ -1,0 +1,60 @@
+/* Project 3: static report; shared typography and color tokens live at the root. */
+.document-header h1 { max-width: 22ch; }
+.contents ol { list-style: none; padding-left: 0; }
+.contents li { padding-left: 0; }
+.contents li::before { content: none; }
+.report-section h3 { margin: 2rem 0 .6rem; font-size: 1.18rem; }
+.report-section p, figcaption, .references li { overflow-wrap: break-word; }
+.report-figure { margin: 2rem 0; }
+.report-figure > .photo-grid { margin: 0; }
+.photo-grid { gap: 1rem; }
+.figure-panel { min-width: 0; }
+.panel-label { margin: .4rem 0 0; color: var(--muted-ink); font-size: .85rem; text-align: center; }
+.equation { margin: 1.5rem 0; padding: .5rem 0; text-align: center; font-size: 1.08rem; overflow-x: auto; }
+.equation .katex-display { margin: 0; }
+.katex { font-size: 1em; }
+.prompt { margin: .7rem 0 1.2rem; padding-left: 1rem; border-left: 2px solid var(--rule); font-size: .95rem; }
+.single-input { max-width: 17rem; margin-left: auto; margin-right: auto; }
+.capture-table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.capture-table thead { border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
+.capture-table tbody tr { border-bottom: 1px solid var(--paper-deep); }
+.capture-table th, .capture-table td { text-align: left; vertical-align: top; }
+.capture-table caption { text-align: left; }
+.error-scale { max-width: 20rem; margin: .7rem auto 1.2rem; }
+.error-scale-bar { height: .65rem; border: 1px solid var(--rule); background: linear-gradient(90deg, #000004, #1c1044 15%, #4f127b 30%, #812581 45%, #b73779 60%, #e75263 75%, #fc8961 85%, #fcfdbf); }
+.error-scale-labels { display: flex; justify-content: space-between; margin-top: .25rem; font-size: .8rem; color: var(--muted-ink); }
+.hybrid-full { max-width: 512px; margin: 0 auto; }
+.distant-view { margin: 1.2rem auto .6rem; text-align: center; }
+.distant-view a { display: block; width: 64px; margin: 0 auto; }
+.distant-view img { display: block; width: 64px; height: 64px; max-width: none; }
+.distant-view .panel-label { margin-top: .55rem; }
+.references li { margin-bottom: .8rem; }
+.contents h3 { margin: 1.4rem 0 .45rem; font-size: 1.05rem; }
+.partb-figure .photo-canvas { background: #fff; }
+
+@media (min-width: 48rem) {
+  .photo-grid--triple { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 26rem) {
+  .equation { font-size: .95rem; }
+  .document-header h1 { font-size: 2rem; }
+}
+@media print {
+  .document-header, .abstract { margin-bottom: 1.5rem; }
+  .document-header h1 { font-size: 26pt; }
+  .report-section { margin-top: 1.6rem; }
+  .report-section h2, .report-section h3 { break-after: avoid; }
+  .report-figure { margin: 1rem 0 1.4rem; }
+  .photo-grid--pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .photo-grid--triple { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .photo-grid { gap: .6rem; }
+  .panel-label { margin-top: .25rem; font-size: 8.5pt; }
+  .equation, .prompt, .error-scale { break-inside: avoid; }
+  .scroll-wrapper { overflow: visible; }
+  .capture-table { font-size: 9pt; }
+  .capture-table th, .capture-table td { padding: .3rem; }
+  .capture-table tr { break-inside: avoid; }
+  .capture-table thead { display: table-header-group; }
+  .single-input { max-width: 2.3in; }
+  .hybrid-full { max-width: 4.6in; }
+}

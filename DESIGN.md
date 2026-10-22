@@ -144,7 +144,31 @@ and measured results under the private `lab/proj2/` directory.
   as the style reference. Browser verification uses an isolated local preview of
   the new public page; the private computation directory is never served.
 
-## Open questions
+## Project 3 extension (2026-10-20)
+
+- `/proj3/index.html` follows the Part A assignment order: interpolation, Gaussian
+  blur, one-step denoising, velocity diagnostics, Euler denoising, conditional
+  samples, guidance, image edits, text-guided edits, visual anagrams, and hybrids.
+- Retain the shared document typography, color tokens, numbered figures, concise
+  captions, and local KaTeX already bundled for Project 2. No new UI dependency.
+- Part B follows with MNIST noising, denoising, pure-noise training, time and class
+  conditioning, checkpoint samples, and the scheduler comparison. Keep plots and
+  digit grids at their actual aspect ratios with one numbered caption each.
+- Show individual 512-pixel results with labels. Split seven-time editing sweeps
+  into readable groups with the original shown first. Hybrid distant previews
+  remain 64 pixels on screen; do not enlarge them alongside full-size images.
+- Distinguish measured reconstruction error from visual interpretation. Prompt
+  names describe intended subjects; observations describe what the saved output
+  actually shows. Keep seed, prompt, step size, guidance, and shared diagnostic
+  scales explicit.
+- Credit the Shirogane Blue Pond image to Jarrett Kow / 4K Wallpapers at the
+  supplied source URL. Describe the monochrome drawing's white square padding
+  before resizing, and the pond's reuse in the web-image experiment.
+- Keep implementation, source images, model files, tensor caches, and complete
+  run metadata in the private `lab/` tree. Copy selected report images into
+  `proj3/images/`. Check mobile overflow and the rendered PDF before delivery.
+
+## Existing open questions
 
 - [x] **Student:** Confirm `Bryan Li` and the report date; impact: submission identity.
 - [x] **Student:** Choose final subjects and write original observations; impact: graded content.

@@ -3,8 +3,8 @@
 ## Source of truth
 
 - **Status:** Active
-- **Date:** 2026-09-29
-- **Product surfaces:** CS 180 portfolio landing page and Project 0, Project 1, and Project 2 reports
+- **Date:** 2026-10-27
+- **Product surfaces:** CS 180 portfolio landing page and Project 0–4 reports
 - **Evidence reviewed:** existing `index.html`, `proj0/index.html`, shared `styles.css`, the [Fall 2026 Project 0 brief](https://cal-cs180.github.io/fa26/hw/proj0/index.html), [Project 1 brief](https://cal-cs180.github.io/fa26/hw/proj1/index.html), the local Project 1 scaffolding plan, and the approved [LaTeX.css reference](https://latex.vercel.app/) with its saved 1440×1200 capture under `.omx/artifacts/visual-ralph/project0/`
 
 This file governs presentation and interaction. The course handout governs required academic content and deliverables.
@@ -167,6 +167,30 @@ and measured results under the private `lab/proj2/` directory.
 - Keep implementation, source images, model files, tensor caches, and complete
   run metadata in the private `lab/` tree. Copy selected report images into
   `proj3/images/`. Check mobile overflow and the rendered PDF before delivery.
+
+## Project 4 extension (2026-10-27)
+
+- `/proj4/index.html` follows Part A: source photo sets, homography equations
+  and numbered correspondences, two rectifications with both interpolation
+  methods, and three feather-blended mosaics. The HTML is the report's single
+  source; do not duplicate its prose in a generator. Show each result once.
+- Reuse the shared typography, color tokens, bordered images, numbered captions,
+  local KaTeX, and navigation. Add only report-specific layout in
+  `/proj4/styles.css`; no new framework or rendering dependency.
+- Present images at their actual aspect ratios. Source and rectification panels
+  use a three-column desktop grid and stack on mobile. Keep the skyline result
+  narrower to avoid an excessively tall figure. Link images to their larger
+  assets; preserve transparent mosaic boundaries.
+- Show measured point-fit errors and interpolation timings from the saved run.
+  Describe the mosaic landmarks and rectification corners as visually selected
+  on enlarged images. State that target rectangle proportions were
+  chosen, not measured. Do not claim perfect alignment or hide railing ghosting.
+- Keep source code, environments, raw HEICs, and working metadata under `lab/`.
+  Public `proj4/images/` contains only the selected metadata-free working photos,
+  annotated figures, and computed results needed by the report.
+- Verify links, math rendering, all images, 320/768/1440-pixel layouts, and print
+  styles. Compare against the saved portfolio screenshots using visual-verdict.
+  Preview only a public-file staging directory, never the private `lab` tree.
 
 ## Existing open questions
 

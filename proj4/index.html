@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="CS 180 Project 4, Part A: homographies, image rectification, nearest-neighbor and bilinear sampling, and three photographic mosaics.">
+  <title>Project 4 · Image Warping and Mosaicing</title>
+  <link rel="stylesheet" href="https://latex.vercel.app/style.min.css">
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../proj2/vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="../proj2/vendor/katex/katex.min.js"></script>
+  <script defer src="../proj2/vendor/katex/auto-render.min.js"></script>
+  <script defer src="../proj2/math.js"></script>
+</head>
+<body>
+<a class="back-link no-print" href="../index.html">← CS 180 portfolio</a>
+<header class="document-header">
+  <span class="section-kicker">Programming Project 4 · Part A</span>
+  <h1>Image Warping and Mosaicing</h1>
+  <p class="author">Bryan Li</p>
+  <p class="document-meta">CS 180 · Fall 2026</p>
+</header>
+<main>
+<section class="abstract" aria-labelledby="abstract-heading">
+  <h2 id="abstract-heading">Abstract</h2>
+  <p>I rectified two photographs and stitched three mosaics using homographies. I compared nearest-neighbor and bilinear sampling and used feathering to blend the overlaps.</p>
+</section>
+<nav class="contents no-print" aria-labelledby="contents-heading">
+  <h2 id="contents-heading">Contents</h2>
+  <ol>
+    <li><a href="#part-a1">A.1 Shoot the pictures</a></li>
+    <li><a href="#part-a2">A.2 Recover homographies</a></li>
+    <li><a href="#part-a3">A.3 Warp and rectify the images</a></li>
+    <li><a href="#part-a4">A.4 Blend the images into mosaics</a></li>
+    <li><a href="#reflection">What I learned</a></li>
+    <li><a href="#references">References and image credits</a></li>
+  </ol>
+</nav>
+
+<section class="report-section" id="part-a1" aria-labelledby="part-a1-heading">
+  <h2 id="part-a1-heading">A.1 Shoot the pictures</h2>
+  <p>I photographed Gateway’s interior, its exterior, and the view out onto the skyline. I resized the working images to 1050 × 1400 before selecting points. All coordinates and errors below use this resolution.</p>
+  <p>Rotating around a fixed camera center lets one homography align a scene with depth.</p>
+<figure class="photo-slot report-figure ">
+<div class="photo-grid photo-grid--triple"><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/source_8230.jpg" aria-label="Open full-size image: Interior atrium, source photograph IMG_8230"><img src="./images/source_8230.jpg" width="1050" height="1400" alt="Interior atrium, source photograph IMG_8230" fetchpriority="high" decoding="async"></a></div>
+<p class="panel-label">IMG_8230</p></div><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/source_8231.jpg" aria-label="Open full-size image: Interior atrium, source photograph IMG_8231"><img src="./images/source_8231.jpg" width="1050" height="1400" alt="Interior atrium, source photograph IMG_8231" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">IMG_8231</p></div><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/source_8232.jpg" aria-label="Open full-size image: Interior atrium, source photograph IMG_8232"><img src="./images/source_8232.jpg" width="1050" height="1400" alt="Interior atrium, source photograph IMG_8232" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">IMG_8232</p></div></div>
+<figcaption><span class="caption-label">Figure 1. Atrium source photographs.</span> Left to right, with IMG_8231 as the reference.</figcaption>
+</figure>
+<figure class="photo-slot report-figure ">
+<div class="photo-grid photo-grid--triple"><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/source_8237.jpg" aria-label="Open full-size image: Illuminated glass courtyard, source photograph IMG_8237"><img src="./images/source_8237.jpg" width="1050" height="1400" alt="Illuminated glass courtyard, source photograph IMG_8237" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">IMG_8237</p></div><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/source_8236.jpg" aria-label="Open full-size image: Illuminated glass courtyard, source photograph IMG_8236"><img src="./images/source_8236.jpg" width="1050" height="1400" alt="Illuminated glass courtyard, source photograph IMG_8236" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">IMG_8236</p></div><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/source_8235.jpg" aria-label="Open full-size image: Illuminated glass courtyard, source photograph IMG_8235"><img src="./images/source_8235.jpg" width="1050" height="1400" alt="Illuminated glass courtyard, source photograph IMG_8235" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">IMG_8235</p></div></div>
+<figcaption><span class="caption-label">Figure 2. Courtyard source photographs.</span> Left to right, with IMG_8236 as the reference.</figcaption>
+</figure>
+<figure class="photo-slot report-figure ">
+<div class="photo-grid photo-grid--pair"><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/source_8240.jpg" aria-label="Open full-size image: Nighttime skyline and foreground rooftops, source photograph IMG_8240"><img src="./images/source_8240.jpg" width="1050" height="1400" alt="Nighttime skyline and foreground rooftops, source photograph IMG_8240" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">IMG_8240</p></div><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/source_8239.jpg" aria-label="Open full-size image: Nighttime skyline and foreground rooftops, source photograph IMG_8239"><img src="./images/source_8239.jpg" width="1050" height="1400" alt="Nighttime skyline and foreground rooftops, source photograph IMG_8239" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">IMG_8239</p></div></div>
+<figcaption><span class="caption-label">Figure 3. Skyline source photographs.</span> Left to right, with IMG_8239 as the reference.</figcaption>
+</figure>
+</section>
+
+<section class="report-section" id="part-a2" aria-labelledby="part-a2-heading">
+  <h2 id="part-a2-heading">A.2 Recover homographies</h2>
+  <p>A homography maps a source point \((x,y)\) to a reference point \((u,v)\):</p>
+  <div class="equation">\[
+    s\begin{bmatrix}u\\v\\1\end{bmatrix}
+    =\begin{bmatrix}h_1&amp;h_2&amp;h_3\\h_4&amp;h_5&amp;h_6\\h_7&amp;h_8&amp;1\end{bmatrix}
+    \begin{bmatrix}x\\y\\1\end{bmatrix}.
+  \]</div>
+  <p>Fixing \(h_{33}=1\) leaves eight unknowns. Each match contributes two equations to \(Ah=b\):</p>
+  <div class="equation equation-system">\[
+    \begin{bmatrix}
+      x_i&amp;y_i&amp;1&amp;0&amp;0&amp;0&amp;-u_i x_i&amp;-u_i y_i\\
+      0&amp;0&amp;0&amp;x_i&amp;y_i&amp;1&amp;-v_i x_i&amp;-v_i y_i
+    \end{bmatrix}h
+    =\begin{bmatrix}u_i\\v_i\end{bmatrix}.
+  \]</div>
+  <p>I fit 12–16 manually selected matches per image pair with least squares. To improve numerical conditioning, I center each point set and scale its mean distance from the origin to \(\sqrt{2}\). After fitting the normalized matrix \(H_n\), I recover \(H=T_r^{-1}H_nT_s\), where \(T_s\) and \(T_r\) are the source and reference normalizations.</p>
+  <p>I selected corresponding landmarks by inspecting enlarged images: window corners, roof edges, ceiling fixtures, and door frames. I checked the point-fit errors and reinspected unclear selections. The rectification corners were also selected visually. In the figures below, matching numbers identify the same feature; each matrix maps the left image to the right.</p>
+<figure class="photo-slot report-figure ">
+<div class="photo-grid "><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/atrium_left_points.jpg" aria-label="Open full-size image: Twelve numbered correspondences between IMG_8230 and IMG_8231"><img src="./images/atrium_left_points.jpg" width="1300" height="644" alt="Twelve numbered correspondences between IMG_8230 and IMG_8231" loading="lazy" decoding="async"></a></div>
+</div></div>
+<figcaption><span class="caption-label">Figure 4. IMG_8230 to IMG_8231.</span></figcaption>
+</figure>
+<div class="equation matrix-equation">\[H_{8230\to 8231}\approx\begin{bmatrix}1.667148 & -0.046406 & -755.583693 \\ 0.519362 & 1.455058 & -349.399876 \\ 0.000662 & -0.000019 & 1.000000\end{bmatrix}.\]</div>
+<figure class="photo-slot report-figure ">
+<div class="photo-grid "><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/atrium_right_points.jpg" aria-label="Open full-size image: Thirteen numbered correspondences between IMG_8232 and IMG_8231"><img src="./images/atrium_right_points.jpg" width="1300" height="644" alt="Thirteen numbered correspondences between IMG_8232 and IMG_8231" loading="lazy" decoding="async"></a></div>
+</div></div>
+<figcaption><span class="caption-label">Figure 5. IMG_8232 to IMG_8231.</span></figcaption>
+</figure>
+<div class="equation matrix-equation">\[H_{8232\to 8231}\approx\begin{bmatrix}0.428567 & 0.012817 & 623.654537 \\ -0.394124 & 0.847937 & 110.288381 \\ -0.000515 & -0.000027 & 1.000000\end{bmatrix}.\]</div>
+<figure class="photo-slot report-figure ">
+<div class="photo-grid "><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/courtyard_left_points.jpg" aria-label="Open full-size image: Fifteen numbered correspondences between IMG_8237 and IMG_8236"><img src="./images/courtyard_left_points.jpg" width="1300" height="644" alt="Fifteen numbered correspondences between IMG_8237 and IMG_8236" loading="lazy" decoding="async"></a></div>
+</div></div>
+<figcaption><span class="caption-label">Figure 6. IMG_8237 to IMG_8236.</span></figcaption>
+</figure>
+<div class="equation matrix-equation">\[H_{8237\to 8236}\approx\begin{bmatrix}1.846746 & -0.136489 & -830.734043 \\ 0.701061 & 1.587856 & -499.647716 \\ 0.000824 & -0.000023 & 1.000000\end{bmatrix}.\]</div>
+<figure class="photo-slot report-figure ">
+<div class="photo-grid "><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/courtyard_right_points.jpg" aria-label="Open full-size image: Fifteen numbered correspondences between IMG_8235 and IMG_8236"><img src="./images/courtyard_right_points.jpg" width="1300" height="644" alt="Fifteen numbered correspondences between IMG_8235 and IMG_8236" loading="lazy" decoding="async"></a></div>
+</div></div>
+<figcaption><span class="caption-label">Figure 7. IMG_8235 to IMG_8236.</span></figcaption>
+</figure>
+<div class="equation matrix-equation">\[H_{8235\to 8236}\approx\begin{bmatrix}0.704820 & 0.002017 & 332.381387 \\ -0.192135 & 0.897115 & 51.075267 \\ -0.000283 & 0.000004 & 1.000000\end{bmatrix}.\]</div>
+<figure class="photo-slot report-figure ">
+<div class="photo-grid "><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/skyline_left_points.jpg" aria-label="Open full-size image: Sixteen numbered correspondences between IMG_8240 and IMG_8239"><img src="./images/skyline_left_points.jpg" width="1300" height="644" alt="Sixteen numbered correspondences between IMG_8240 and IMG_8239" loading="lazy" decoding="async"></a></div>
+</div></div>
+<figcaption><span class="caption-label">Figure 8. IMG_8240 to IMG_8239.</span></figcaption>
+</figure>
+<div class="equation matrix-equation">\[H_{8240\to 8239}\approx\begin{bmatrix}1.207944 & -0.008294 & -229.304859 \\ 0.152334 & 1.108046 & -76.521366 \\ 0.000210 & -0.000013 & 1.000000\end{bmatrix}.\]</div>
+  <div class="scroll-wrapper" role="region" aria-label="Homography fit errors" tabindex="0">
+  <table class="capture-table">
+    <caption>RMS reprojection error on the selected correspondences, in working-image pixels.</caption>
+    <thead><tr><th scope="col">Source → reference</th><th scope="col">Pairs</th><th scope="col">RMS error</th></tr></thead>
+    <tbody><tr><th scope="row">8230 → 8231</th><td>12</td><td>1.651</td></tr>
+<tr><th scope="row">8232 → 8231</th><td>13</td><td>1.385</td></tr>
+<tr><th scope="row">8237 → 8236</th><td>15</td><td>0.964</td></tr>
+<tr><th scope="row">8235 → 8236</th><td>15</td><td>1.207</td></tr>
+<tr><th scope="row">8240 → 8239</th><td>16</td><td>1.585</td></tr></tbody>
+  </table></div>
+  <p>Matrices are rounded to six decimal places here; warping uses full precision. The errors measure agreement at the selected points, not alignment across the entire scene.</p>
+</section>
+
+<section class="report-section" id="part-a3" aria-labelledby="part-a3-heading">
+  <h2 id="part-a3-heading">A.3 Warp and rectify the images</h2>
+  <p>For each output pixel at \((x,y)\), I compute \(H^{-1}[x,y,1]^T=[a,b,c]^T\). The corresponding source position is \((a/c,b/c)\), where I sample the image. This inverse mapping avoids holes between forward-mapped pixels.</p>
+  <p>Nearest neighbor rounds to the closest pixel. Bilinear sampling averages four neighbors. With \(x_0=\lfloor x\rfloor\), \(y_0=\lfloor y\rfloor\), \(a=x-x_0\), and \(b=y-y_0\),</p>
+  <div class="equation">\[\begin{aligned}
+    I(x,y)={}&amp;(1-a)(1-b)I(x_0,y_0)\\
+    &amp;+a(1-b)I(x_0+1,y_0)\\
+    &amp;+(1-a)bI(x_0,y_0+1)\\
+    &amp;+abI(x_0+1,y_0+1).
+  \end{aligned}\]</div>
+  <p>General warps use the transformed corners to size the canvas. Rectification uses the chosen target rectangle. A separate mask distinguishes empty space from black pixels.</p>
+  <h3>Whiteboard</h3>
+  <p>I mapped the board’s four corners to a 700 × 1100 rectangle.</p>
+<figure class="photo-slot report-figure ">
+<div class="photo-grid photo-grid--triple"><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/whiteboard_corners.jpg" aria-label="Open full-size image: Angled whiteboard with its four selected corners numbered clockwise"><img src="./images/whiteboard_corners.jpg" width="1050" height="1400" alt="Angled whiteboard with its four selected corners numbered clockwise" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original and four corners</p></div><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/whiteboard_nearest.png" aria-label="Open full-size image: Front-facing whiteboard rectified with nearest-neighbor interpolation"><img src="./images/whiteboard_nearest.png" width="700" height="1100" alt="Front-facing whiteboard rectified with nearest-neighbor interpolation" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Nearest neighbor</p></div><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/whiteboard_bilinear.png" aria-label="Open full-size image: Front-facing whiteboard rectified with bilinear interpolation"><img src="./images/whiteboard_bilinear.png" width="700" height="1100" alt="Front-facing whiteboard rectified with bilinear interpolation" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Bilinear</p></div></div>
+<figcaption><span class="caption-label">Figure 9. Whiteboard rectification.</span> The four front-face corners map to a 700 × 1100 rectangle. <a href="./images/source_8233.jpg">Unannotated source photograph</a>.</figcaption>
+</figure>
+<figure class="photo-slot report-figure detail-figure">
+<div class="photo-grid "><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/whiteboard_detail.jpg" aria-label="Open full-size image: Equal-size nearest-neighbor and bilinear detail crops of the rectified whiteboard"><img src="./images/whiteboard_detail.jpg" width="440" height="224" alt="Equal-size nearest-neighbor and bilinear detail crops of the rectified whiteboard" loading="lazy" decoding="async"></a></div>
+</div></div>
+<figcaption><span class="caption-label">Figure 10. Whiteboard interpolation detail.</span> Both crops cover the same output coordinates.</figcaption>
+</figure>
+  <h3>Wall sign</h3>
+  <p>The sign was photographed at a steeper angle. Rectification straightens it, but the enlarged text remains soft.</p>
+<figure class="photo-slot report-figure ">
+<div class="photo-grid photo-grid--triple"><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/sign_corners.jpg" aria-label="Open full-size image: Angled wall sign with its four selected corners numbered clockwise"><img src="./images/sign_corners.jpg" width="1050" height="1400" alt="Angled wall sign with its four selected corners numbered clockwise" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Original and four corners</p></div><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/sign_nearest.png" aria-label="Open full-size image: Front-facing wall sign rectified with nearest-neighbor interpolation"><img src="./images/sign_nearest.png" width="600" height="1000" alt="Front-facing wall sign rectified with nearest-neighbor interpolation" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Nearest neighbor</p></div><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/sign_bilinear.png" aria-label="Open full-size image: Front-facing wall sign rectified with bilinear interpolation"><img src="./images/sign_bilinear.png" width="600" height="1000" alt="Front-facing wall sign rectified with bilinear interpolation" loading="lazy" decoding="async"></a></div>
+<p class="panel-label">Bilinear</p></div></div>
+<figcaption><span class="caption-label">Figure 11. Wall sign rectification.</span> The four front-face corners map to a 600 × 1000 rectangle. <a href="./images/source_8234.jpg">Unannotated source photograph</a>.</figcaption>
+</figure>
+<figure class="photo-slot report-figure detail-figure">
+<div class="photo-grid "><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/sign_detail.jpg" aria-label="Open full-size image: Equal-size nearest-neighbor and bilinear detail crops of the rectified wall sign"><img src="./images/sign_detail.jpg" width="440" height="224" alt="Equal-size nearest-neighbor and bilinear detail crops of the rectified wall sign" loading="lazy" decoding="async"></a></div>
+</div></div>
+<figcaption><span class="caption-label">Figure 12. Wall sign interpolation detail.</span> Both crops cover the same output coordinates.</figcaption>
+</figure>
+  <p>The sign’s text and map look jagged with nearest neighbor and smoother with bilinear sampling. The difference is less obvious in the whiteboard’s faint handwriting. I chose the output dimensions without measuring either object, so their exact physical proportions are not recovered.</p>
+  <div class="scroll-wrapper" role="region" aria-label="Interpolation timings" tabindex="0">
+  <table class="capture-table">
+    <caption>Warp-only timings from one local run; image loading and saving are excluded.</caption>
+    <thead><tr><th scope="col">Output</th><th scope="col">Nearest neighbor</th><th scope="col">Bilinear</th></tr></thead>
+    <tbody><tr><th scope="row">Whiteboard · 700 × 1100</th><td>39.5 ms</td><td>95.8 ms</td></tr>
+<tr><th scope="row">Sign · 600 × 1000</th><td>27.3 ms</td><td>67.2 ms</td></tr></tbody>
+  </table></div>
+  <p>Bilinear combines four neighboring pixels, while nearest neighbor selects one. These timings are single-run measurements and vary between runs.</p>
+</section>
+
+<section class="report-section" id="part-a4" aria-labelledby="part-a4-heading">
+  <h2 id="part-a4-heading">A.4 Blend the images into mosaics</h2>
+  <p>I keep the reference image fixed and warp the other views into its coordinates with bilinear sampling. Their transformed bounds determine the shared canvas.</p>
+  <p>Each image receives weights that increase with distance from its edges. I warp the weighted colors and weights together, then divide their sums:</p>
+  <div class="equation">\[
+    M(p)=\frac{\sum_k\mathcal W_{H_k}(w_kI_k)(p)}
+    {\sum_k\mathcal W_{H_k}(w_k)(p)}.
+  \]</div>
+  <p>Here \(\mathcal W\) is inverse warping. Overlaps transition gradually between views, and uncovered pixels stay transparent. The figures retain the full warped boundaries.</p>
+  <h3>Atrium</h3>
+<figure class="photo-slot report-figure ">
+<div class="photo-grid "><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/atrium_mosaic.webp" aria-label="Open full-size image: Final feather-blended atrium mosaic with the complete warped image boundaries visible"><img src="./images/atrium_mosaic.webp" width="2400" height="1927" alt="Final feather-blended atrium mosaic with the complete warped image boundaries visible" loading="lazy" decoding="async"></a></div>
+</div></div>
+<figcaption><span class="caption-label">Figure 13. Atrium mosaic.</span> Three views aligned to IMG_8231.</figcaption>
+</figure>
+  <p>The balconies mostly align, but nearby railing bars appear doubled. This is consistent with a small camera-center shift; point-selection error may also contribute. Feathering softens the seam without fixing the misalignment.</p>
+  <h3>Courtyard</h3>
+<figure class="photo-slot report-figure ">
+<div class="photo-grid "><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/courtyard_mosaic.webp" aria-label="Open full-size image: Final feather-blended courtyard mosaic with the complete warped image boundaries visible"><img src="./images/courtyard_mosaic.webp" width="2400" height="2120" alt="Final feather-blended courtyard mosaic with the complete warped image boundaries visible" loading="lazy" decoding="async"></a></div>
+</div></div>
+<figcaption><span class="caption-label">Figure 14. Courtyard mosaic.</span> Three views aligned to IMG_8236.</figcaption>
+</figure>
+  <p>Window rows and floor boundaries mostly join across the views. The wide planar projection stretches the sides, and some brightness differences remain near the glass.</p>
+  <h3>Skyline</h3>
+<figure class="photo-slot report-figure portrait-result">
+<div class="photo-grid "><div class="figure-panel">
+<div class="photo-canvas"><a href="./images/skyline_mosaic.webp" aria-label="Open full-size image: Final feather-blended skyline mosaic with the complete warped image boundaries visible"><img src="./images/skyline_mosaic.webp" width="1296" height="1579" alt="Final feather-blended skyline mosaic with the complete warped image boundaries visible" loading="lazy" decoding="async"></a></div>
+</div></div>
+<figcaption><span class="caption-label">Figure 15. Skyline mosaic.</span> Two views aligned to IMG_8239. The heavy overlap adds only a narrow strip to the scene.</figcaption>
+</figure>
+
+</section>
+
+<section class="report-section" id="reflection" aria-labelledby="reflection-heading">
+  <h2 id="reflection-heading">What I learned</h2>
+  <p>It was super cool to learn how to make mosaics and understand the difficulties involved. The atrium’s doubled railings are visible even when the selected landmarks line up closely. Rectifying the sign also showed the trade-off between nearest neighbor and bilinear sampling: bilinear makes the text smoother, but it cannot restore detail missing from the original photo.</p>
+</section>
+
+<section class="report-section" id="references" aria-labelledby="references-heading">
+  <h2 id="references-heading">References and image credits</h2>
+  <ol class="references">
+    <li>All photographs by Bryan Li.</li>
+  </ol>
+</section>
+</main>
+<footer class="document-footer">
+  <p>Bryan Li · CS 180 · Project 4, Part A</p>
+  <p class="no-print"><a href="../index.html">Return to portfolio</a></p>
+</footer>
+</body>
+</html>

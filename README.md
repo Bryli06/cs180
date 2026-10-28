@@ -1,7 +1,8 @@
 # CS180 portfolio
 
 Open [Project 0](proj0/index.html), [Project 1](proj1/index.html),
-[Project 2](proj2/index.html), or [Project 3](proj3/index.html) in a browser.
+[Project 2](proj2/index.html), [Project 3](proj3/index.html), or
+[Project 4](proj4/index.html) in a browser.
 These are ordinary static HTML pages with local image files.
 
 The private Project 1 code is in `lab/`. Its 17 original scans are already local:
@@ -24,3 +25,7 @@ are documented in [lab/proj2/README.md](lab/proj2/README.md).
 Project 3 includes Parts A and B and uses the same portfolio styles. Private Colab
 notebooks, checks, and results are under `lab/proj3/parta/` and `lab/proj3/partb/`.
 Only the report and selected image outputs belong in the public `proj3/` folder.
+
+Project 4, Part A uses the same report format for image warping and mosaicing.
+Private code, prepared photographs, point selections, and full results are in
+`lab/proj4/parta/`. The static report and selected web images are in `proj4/`.

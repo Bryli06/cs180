@@ -1,0 +1,50 @@
+/* Project 4 reuses the portfolio's typography, colors, and figure frames. */
+.contents ol { list-style: none; padding-left: 0; }
+.contents li { padding-left: 0; }
+.contents li::before { content: none; }
+.report-section h3 { margin: 2rem 0 .6rem; font-size: 1.18rem; }
+.report-section p, figcaption, .references li { overflow-wrap: break-word; }
+.report-figure { margin: 2rem 0; }
+.report-figure > .photo-grid { margin: 0; }
+.photo-grid { gap: 1rem; }
+.figure-panel { min-width: 0; }
+.panel-label { margin: .4rem 0 0; color: var(--muted-ink); font-size: .85rem; text-align: center; }
+.equation { margin: 1.5rem 0; padding: .5rem 0; text-align: center; overflow-x: auto; }
+.equation .katex-display { margin: 0; }
+.katex { font-size: 1em; }
+.equation-system { font-size: .88rem; }
+.matrix-equation { font-size: .92rem; }
+.detail-figure { max-width: 440px; margin-left: auto; margin-right: auto; }
+.portrait-result { max-width: 29rem; margin-left: auto; margin-right: auto; }
+.capture-table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.capture-table thead { border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
+.capture-table tbody tr { border-bottom: 1px solid var(--paper-deep); }
+.capture-table th, .capture-table td { text-align: left; vertical-align: top; }
+.capture-table caption { text-align: left; }
+.references li { margin-bottom: .8rem; }
+
+@media (min-width: 48rem) {
+  .photo-grid--triple { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 26rem) {
+  .document-header h1 { font-size: 2rem; }
+  .matrix-equation { font-size: .8rem; }
+}
+@media print {
+  .document-header, .abstract { margin-bottom: 1.5rem; }
+  .document-header h1 { font-size: 26pt; }
+  .report-section { margin-top: 1.6rem; }
+  .report-section h2, .report-section h3 { break-after: avoid; }
+  .report-figure { margin: 1rem 0 1.4rem; }
+  .photo-grid--pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .photo-grid--triple { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .photo-grid { gap: .6rem; }
+  .panel-label { margin-top: .25rem; font-size: 8.5pt; }
+  .equation { break-inside: avoid; overflow: visible; }
+  .scroll-wrapper { overflow: visible; }
+  .capture-table { font-size: 9pt; }
+  .capture-table th, .capture-table td { padding: .3rem; }
+  .capture-table tr { break-inside: avoid; }
+  .capture-table thead { display: table-header-group; }
+  .portrait-result { max-width: 3.6in; }
+}

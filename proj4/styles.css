@@ -34,6 +34,7 @@
   .document-header, .abstract { margin-bottom: 1.5rem; }
   .document-header h1 { font-size: 26pt; }
   .report-section { margin-top: 1.6rem; }
+  #references { break-before: auto; }
   .report-section h2, .report-section h3 { break-after: avoid; }
   .report-figure { margin: 1rem 0 1.4rem; }
   .photo-grid--pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }

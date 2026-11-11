@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="CS 180 Project 4, Part A: homographies, image rectification, nearest-neighbor and bilinear sampling, and three photographic mosaics.">
+  <meta name="description" content="Three photographic mosaics stitched with hand-selected points and automatic feature matches, with homography estimation, rectification, and RANSAC.">
   <title>Project 4 · Image Warping and Mosaicing</title>
   <link rel="stylesheet" href="https://latex.vercel.app/style.min.css">
   <link rel="stylesheet" href="../styles.css">
@@ -16,7 +16,7 @@
 <body>
 <a class="back-link no-print" href="../index.html">← CS 180 portfolio</a>
 <header class="document-header">
-  <span class="section-kicker">Programming Project 4 · Part A</span>
+  <span class="section-kicker">Programming Project 4 · Parts A and B</span>
   <h1>Image Warping and Mosaicing</h1>
   <p class="author">Bryan Li</p>
   <p class="document-meta">CS 180 · Fall 2026</p>
@@ -24,7 +24,7 @@
 <main>
 <section class="abstract" aria-labelledby="abstract-heading">
   <h2 id="abstract-heading">Abstract</h2>
-  <p>I rectified two photographs and stitched three mosaics using homographies. I compared nearest-neighbor and bilinear sampling and used feathering to blend the overlaps.</p>
+  <p>I straightened a whiteboard and a wall sign, then stitched panoramas of the Gateway atrium, courtyard, and skyline. For each panorama I compared hand-picked landmarks with automatically matched corners using the same warp and blend.</p>
 </section>
 <nav class="contents no-print" aria-labelledby="contents-heading">
   <h2 id="contents-heading">Contents</h2>
@@ -33,6 +33,10 @@
     <li><a href="#part-a2">A.2 Recover homographies</a></li>
     <li><a href="#part-a3">A.3 Warp and rectify the images</a></li>
     <li><a href="#part-a4">A.4 Blend the images into mosaics</a></li>
+    <li><a href="#part-b1">B.1 Detect and select corners</a></li>
+    <li><a href="#part-b2">B.2 Describe each corner</a></li>
+    <li><a href="#part-b3">B.3 Match features between views</a></li>
+    <li><a href="#part-b4">B.4 Fit homographies and compare mosaics</a></li>
     <li><a href="#reflection">What I learned</a></li>
     <li><a href="#references">References and image credits</a></li>
   </ol>
@@ -40,9 +44,9 @@
 
 <section class="report-section" id="part-a1" aria-labelledby="part-a1-heading">
   <h2 id="part-a1-heading">A.1 Shoot the pictures</h2>
-  <p>I photographed Gateway’s interior, its exterior, and the view out onto the skyline. I resized the working images to 1050 × 1400 before selecting points. All coordinates and errors below use this resolution.</p>
-  <p>Rotating around a fixed camera center lets one homography align a scene with depth.</p>
-<figure class="photo-slot report-figure ">
+  <p>I resized the photographs to 1050 × 1400 pixels before marking landmarks. All point coordinates and alignment errors use that resolution.</p>
+  <p>When the camera rotates about a fixed center, a single homography can align objects at different depths.</p>
+<figure class="photo-slot report-figure">
 <div class="photo-grid photo-grid--triple"><div class="figure-panel">
 <div class="photo-canvas"><a href="./images/source_8230.jpg" aria-label="Open full-size image: Interior atrium, source photograph IMG_8230"><img src="./images/source_8230.jpg" width="1050" height="1400" alt="Interior atrium, source photograph IMG_8230" fetchpriority="high" decoding="async"></a></div>
 <p class="panel-label">IMG_8230</p></div><div class="figure-panel">
@@ -52,7 +56,7 @@
 <p class="panel-label">IMG_8232</p></div></div>
 <figcaption><span class="caption-label">Figure 1. Atrium source photographs.</span> Left to right, with IMG_8231 as the reference.</figcaption>
 </figure>
-<figure class="photo-slot report-figure ">
+<figure class="photo-slot report-figure">
 <div class="photo-grid photo-grid--triple"><div class="figure-panel">
 <div class="photo-canvas"><a href="./images/source_8237.jpg" aria-label="Open full-size image: Illuminated glass courtyard, source photograph IMG_8237"><img src="./images/source_8237.jpg" width="1050" height="1400" alt="Illuminated glass courtyard, source photograph IMG_8237" loading="lazy" decoding="async"></a></div>
 <p class="panel-label">IMG_8237</p></div><div class="figure-panel">
@@ -62,7 +66,7 @@
 <p class="panel-label">IMG_8235</p></div></div>
 <figcaption><span class="caption-label">Figure 2. Courtyard source photographs.</span> Left to right, with IMG_8236 as the reference.</figcaption>
 </figure>
-<figure class="photo-slot report-figure ">
+<figure class="photo-slot report-figure">
 <div class="photo-grid photo-grid--pair"><div class="figure-panel">
 <div class="photo-canvas"><a href="./images/source_8240.jpg" aria-label="Open full-size image: Nighttime skyline and foreground rooftops, source photograph IMG_8240"><img src="./images/source_8240.jpg" width="1050" height="1400" alt="Nighttime skyline and foreground rooftops, source photograph IMG_8240" loading="lazy" decoding="async"></a></div>
 <p class="panel-label">IMG_8240</p></div><div class="figure-panel">
@@ -89,39 +93,29 @@
     =\begin{bmatrix}u_i\\v_i\end{bmatrix}.
   \]</div>
   <p>I fit 12–16 manually selected matches per image pair with least squares. To improve numerical conditioning, I center each point set and scale its mean distance from the origin to \(\sqrt{2}\). After fitting the normalized matrix \(H_n\), I recover \(H=T_r^{-1}H_nT_s\), where \(T_s\) and \(T_r\) are the source and reference normalizations.</p>
-  <p>I selected corresponding landmarks by inspecting enlarged images: window corners, roof edges, ceiling fixtures, and door frames. I checked the point-fit errors and reinspected unclear selections. The rectification corners were also selected visually. In the figures below, matching numbers identify the same feature; each matrix maps the left image to the right.</p>
-<figure class="photo-slot report-figure ">
-<div class="photo-grid "><div class="figure-panel">
+  <p>I marked window corners, roof edges, ceiling fixtures, and door frames on enlarged photos. Matching numbers identify the same landmark in both views. Each matrix maps the left photo into the right photo’s coordinates.</p>
+<figure class="photo-slot report-figure">
 <div class="photo-canvas"><a href="./images/atrium_left_points.jpg" aria-label="Open full-size image: Twelve numbered correspondences between IMG_8230 and IMG_8231"><img src="./images/atrium_left_points.jpg" width="1300" height="644" alt="Twelve numbered correspondences between IMG_8230 and IMG_8231" loading="lazy" decoding="async"></a></div>
-</div></div>
 <figcaption><span class="caption-label">Figure 4. IMG_8230 to IMG_8231.</span></figcaption>
 </figure>
 <div class="equation matrix-equation">\[H_{8230\to 8231}\approx\begin{bmatrix}1.667148 & -0.046406 & -755.583693 \\ 0.519362 & 1.455058 & -349.399876 \\ 0.000662 & -0.000019 & 1.000000\end{bmatrix}.\]</div>
-<figure class="photo-slot report-figure ">
-<div class="photo-grid "><div class="figure-panel">
+<figure class="photo-slot report-figure">
 <div class="photo-canvas"><a href="./images/atrium_right_points.jpg" aria-label="Open full-size image: Thirteen numbered correspondences between IMG_8232 and IMG_8231"><img src="./images/atrium_right_points.jpg" width="1300" height="644" alt="Thirteen numbered correspondences between IMG_8232 and IMG_8231" loading="lazy" decoding="async"></a></div>
-</div></div>
 <figcaption><span class="caption-label">Figure 5. IMG_8232 to IMG_8231.</span></figcaption>
 </figure>
 <div class="equation matrix-equation">\[H_{8232\to 8231}\approx\begin{bmatrix}0.428567 & 0.012817 & 623.654537 \\ -0.394124 & 0.847937 & 110.288381 \\ -0.000515 & -0.000027 & 1.000000\end{bmatrix}.\]</div>
-<figure class="photo-slot report-figure ">
-<div class="photo-grid "><div class="figure-panel">
+<figure class="photo-slot report-figure">
 <div class="photo-canvas"><a href="./images/courtyard_left_points.jpg" aria-label="Open full-size image: Fifteen numbered correspondences between IMG_8237 and IMG_8236"><img src="./images/courtyard_left_points.jpg" width="1300" height="644" alt="Fifteen numbered correspondences between IMG_8237 and IMG_8236" loading="lazy" decoding="async"></a></div>
-</div></div>
 <figcaption><span class="caption-label">Figure 6. IMG_8237 to IMG_8236.</span></figcaption>
 </figure>
 <div class="equation matrix-equation">\[H_{8237\to 8236}\approx\begin{bmatrix}1.846746 & -0.136489 & -830.734043 \\ 0.701061 & 1.587856 & -499.647716 \\ 0.000824 & -0.000023 & 1.000000\end{bmatrix}.\]</div>
-<figure class="photo-slot report-figure ">
-<div class="photo-grid "><div class="figure-panel">
+<figure class="photo-slot report-figure">
 <div class="photo-canvas"><a href="./images/courtyard_right_points.jpg" aria-label="Open full-size image: Fifteen numbered correspondences between IMG_8235 and IMG_8236"><img src="./images/courtyard_right_points.jpg" width="1300" height="644" alt="Fifteen numbered correspondences between IMG_8235 and IMG_8236" loading="lazy" decoding="async"></a></div>
-</div></div>
 <figcaption><span class="caption-label">Figure 7. IMG_8235 to IMG_8236.</span></figcaption>
 </figure>
 <div class="equation matrix-equation">\[H_{8235\to 8236}\approx\begin{bmatrix}0.704820 & 0.002017 & 332.381387 \\ -0.192135 & 0.897115 & 51.075267 \\ -0.000283 & 0.000004 & 1.000000\end{bmatrix}.\]</div>
-<figure class="photo-slot report-figure ">
-<div class="photo-grid "><div class="figure-panel">
+<figure class="photo-slot report-figure">
 <div class="photo-canvas"><a href="./images/skyline_left_points.jpg" aria-label="Open full-size image: Sixteen numbered correspondences between IMG_8240 and IMG_8239"><img src="./images/skyline_left_points.jpg" width="1300" height="644" alt="Sixteen numbered correspondences between IMG_8240 and IMG_8239" loading="lazy" decoding="async"></a></div>
-</div></div>
 <figcaption><span class="caption-label">Figure 8. IMG_8240 to IMG_8239.</span></figcaption>
 </figure>
 <div class="equation matrix-equation">\[H_{8240\to 8239}\approx\begin{bmatrix}1.207944 & -0.008294 & -229.304859 \\ 0.152334 & 1.108046 & -76.521366 \\ 0.000210 & -0.000013 & 1.000000\end{bmatrix}.\]</div>
@@ -135,7 +129,7 @@
 <tr><th scope="row">8235 → 8236</th><td>15</td><td>1.207</td></tr>
 <tr><th scope="row">8240 → 8239</th><td>16</td><td>1.585</td></tr></tbody>
   </table></div>
-  <p>Matrices are rounded to six decimal places here; warping uses full precision. The errors measure agreement at the selected points, not alignment across the entire scene.</p>
+  <p>I used the full-precision matrices for warping. The table gives the root-mean-square (RMS) distance between each projected landmark and its hand-picked target.</p>
 </section>
 
 <section class="report-section" id="part-a3" aria-labelledby="part-a3-heading">
@@ -148,10 +142,9 @@
     &amp;+(1-a)bI(x_0,y_0+1)\\
     &amp;+abI(x_0+1,y_0+1).
   \end{aligned}\]</div>
-  <p>General warps use the transformed corners to size the canvas. Rectification uses the chosen target rectangle. A separate mask distinguishes empty space from black pixels.</p>
+  <p>For rectification I marked the four corners of each object and chose a rectangular output by eye. The proportions are approximate because I did not measure either object.</p>
   <h3>Whiteboard</h3>
-  <p>I mapped the board’s four corners to a 700 × 1100 rectangle.</p>
-<figure class="photo-slot report-figure ">
+<figure class="photo-slot report-figure">
 <div class="photo-grid photo-grid--triple"><div class="figure-panel">
 <div class="photo-canvas"><a href="./images/whiteboard_corners.jpg" aria-label="Open full-size image: Angled whiteboard with its four selected corners numbered clockwise"><img src="./images/whiteboard_corners.jpg" width="1050" height="1400" alt="Angled whiteboard with its four selected corners numbered clockwise" loading="lazy" decoding="async"></a></div>
 <p class="panel-label">Original and four corners</p></div><div class="figure-panel">
@@ -162,14 +155,11 @@
 <figcaption><span class="caption-label">Figure 9. Whiteboard rectification.</span> The four front-face corners map to a 700 × 1100 rectangle. <a href="./images/source_8233.jpg">Unannotated source photograph</a>.</figcaption>
 </figure>
 <figure class="photo-slot report-figure detail-figure">
-<div class="photo-grid "><div class="figure-panel">
 <div class="photo-canvas"><a href="./images/whiteboard_detail.jpg" aria-label="Open full-size image: Equal-size nearest-neighbor and bilinear detail crops of the rectified whiteboard"><img src="./images/whiteboard_detail.jpg" width="440" height="224" alt="Equal-size nearest-neighbor and bilinear detail crops of the rectified whiteboard" loading="lazy" decoding="async"></a></div>
-</div></div>
 <figcaption><span class="caption-label">Figure 10. Whiteboard interpolation detail.</span> Both crops cover the same output coordinates.</figcaption>
 </figure>
   <h3>Wall sign</h3>
-  <p>The sign was photographed at a steeper angle. Rectification straightens it, but the enlarged text remains soft.</p>
-<figure class="photo-slot report-figure ">
+<figure class="photo-slot report-figure">
 <div class="photo-grid photo-grid--triple"><div class="figure-panel">
 <div class="photo-canvas"><a href="./images/sign_corners.jpg" aria-label="Open full-size image: Angled wall sign with its four selected corners numbered clockwise"><img src="./images/sign_corners.jpg" width="1050" height="1400" alt="Angled wall sign with its four selected corners numbered clockwise" loading="lazy" decoding="async"></a></div>
 <p class="panel-label">Original and four corners</p></div><div class="figure-panel">
@@ -180,71 +170,161 @@
 <figcaption><span class="caption-label">Figure 11. Wall sign rectification.</span> The four front-face corners map to a 600 × 1000 rectangle. <a href="./images/source_8234.jpg">Unannotated source photograph</a>.</figcaption>
 </figure>
 <figure class="photo-slot report-figure detail-figure">
-<div class="photo-grid "><div class="figure-panel">
 <div class="photo-canvas"><a href="./images/sign_detail.jpg" aria-label="Open full-size image: Equal-size nearest-neighbor and bilinear detail crops of the rectified wall sign"><img src="./images/sign_detail.jpg" width="440" height="224" alt="Equal-size nearest-neighbor and bilinear detail crops of the rectified wall sign" loading="lazy" decoding="async"></a></div>
-</div></div>
 <figcaption><span class="caption-label">Figure 12. Wall sign interpolation detail.</span> Both crops cover the same output coordinates.</figcaption>
 </figure>
-  <p>The sign’s text and map look jagged with nearest neighbor and smoother with bilinear sampling. The difference is less obvious in the whiteboard’s faint handwriting. I chose the output dimensions without measuring either object, so their exact physical proportions are not recovered.</p>
+  <p>The difference is easiest to see on the wall sign. Nearest-neighbor sampling gives the letters and map jagged edges. Bilinear sampling smooths them, though the small print stays blurry. The difference is subtler in the whiteboard’s faint handwriting.</p>
   <div class="scroll-wrapper" role="region" aria-label="Interpolation timings" tabindex="0">
   <table class="capture-table">
-    <caption>Warp-only timings from one local run; image loading and saving are excluded.</caption>
+    <caption>Time spent warping each image in one local run, excluding file I/O.</caption>
     <thead><tr><th scope="col">Output</th><th scope="col">Nearest neighbor</th><th scope="col">Bilinear</th></tr></thead>
     <tbody><tr><th scope="row">Whiteboard · 700 × 1100</th><td>39.5 ms</td><td>95.8 ms</td></tr>
 <tr><th scope="row">Sign · 600 × 1000</th><td>27.3 ms</td><td>67.2 ms</td></tr></tbody>
   </table></div>
-  <p>Bilinear combines four neighboring pixels, while nearest neighbor selects one. These timings are single-run measurements and vary between runs.</p>
 </section>
 
 <section class="report-section" id="part-a4" aria-labelledby="part-a4-heading">
   <h2 id="part-a4-heading">A.4 Blend the images into mosaics</h2>
-  <p>I keep the reference image fixed and warp the other views into its coordinates with bilinear sampling. Their transformed bounds determine the shared canvas.</p>
-  <p>Each image receives weights that increase with distance from its edges. I warp the weighted colors and weights together, then divide their sums:</p>
+  <p>I kept the reference photo fixed and used bilinear sampling to warp the other views onto a canvas large enough to hold their transformed corners.</p>
+  <p>To soften the seams, I gave pixels near the edge of each photo less weight. I warped the weighted colors and their weights together and divided the two sums.</p>
   <div class="equation">\[
     M(p)=\frac{\sum_k\mathcal W_{H_k}(w_kI_k)(p)}
     {\sum_k\mathcal W_{H_k}(w_k)(p)}.
   \]</div>
-  <p>Here \(\mathcal W\) is inverse warping. Overlaps transition gradually between views, and uncovered pixels stay transparent. The figures retain the full warped boundaries.</p>
+  <p>Here \(\mathcal W\) denotes inverse warping. Pixels outside all the photos are transparent.</p>
   <h3>Atrium</h3>
-<figure class="photo-slot report-figure ">
-<div class="photo-grid "><div class="figure-panel">
+<figure class="photo-slot report-figure">
 <div class="photo-canvas"><a href="./images/atrium_mosaic.webp" aria-label="Open full-size image: Final feather-blended atrium mosaic with the complete warped image boundaries visible"><img src="./images/atrium_mosaic.webp" width="2400" height="1927" alt="Final feather-blended atrium mosaic with the complete warped image boundaries visible" loading="lazy" decoding="async"></a></div>
-</div></div>
 <figcaption><span class="caption-label">Figure 13. Atrium mosaic.</span> Three views aligned to IMG_8231.</figcaption>
 </figure>
-  <p>The balconies mostly align, but nearby railing bars appear doubled. This is consistent with a small camera-center shift; point-selection error may also contribute. Feathering softens the seam without fixing the misalignment.</p>
+  <p>The balcony edges line up better than the bars of the nearby railing, which appear doubled. A slight shift in camera position or an imprecise landmark could account for the offset.</p>
   <h3>Courtyard</h3>
-<figure class="photo-slot report-figure ">
-<div class="photo-grid "><div class="figure-panel">
+<figure class="photo-slot report-figure">
 <div class="photo-canvas"><a href="./images/courtyard_mosaic.webp" aria-label="Open full-size image: Final feather-blended courtyard mosaic with the complete warped image boundaries visible"><img src="./images/courtyard_mosaic.webp" width="2400" height="2120" alt="Final feather-blended courtyard mosaic with the complete warped image boundaries visible" loading="lazy" decoding="async"></a></div>
-</div></div>
 <figcaption><span class="caption-label">Figure 14. Courtyard mosaic.</span> Three views aligned to IMG_8236.</figcaption>
 </figure>
   <p>Window rows and floor boundaries mostly join across the views. The wide planar projection stretches the sides, and some brightness differences remain near the glass.</p>
   <h3>Skyline</h3>
 <figure class="photo-slot report-figure portrait-result">
-<div class="photo-grid "><div class="figure-panel">
 <div class="photo-canvas"><a href="./images/skyline_mosaic.webp" aria-label="Open full-size image: Final feather-blended skyline mosaic with the complete warped image boundaries visible"><img src="./images/skyline_mosaic.webp" width="1296" height="1579" alt="Final feather-blended skyline mosaic with the complete warped image boundaries visible" loading="lazy" decoding="async"></a></div>
-</div></div>
 <figcaption><span class="caption-label">Figure 15. Skyline mosaic.</span> Two views aligned to IMG_8239. The heavy overlap adds only a narrow strip to the scene.</figcaption>
 </figure>
 
 </section>
 
+<section class="report-section" id="part-b1" aria-labelledby="part-b1-heading">
+  <h2 id="part-b1-heading">B.1 Detect and select corners</h2>
+  <p>I ran a single-scale Harris detector on each grayscale photo. It picks out changes in brightness in two directions, such as the corner where a window frame meets a sill. I kept local peaks in a 7 × 7 neighborhood, at least 20 pixels from the image edge.</p>
+  <p>Many Harris corners landed on the atrium railings. To spread them out, I used adaptive non-maximal suppression (ANMS). I measured the distance from each corner to the nearest corner whose Harris response exceeded its own by more than one ninth. I kept the 800 corners with the largest distances.</p>
+  <figure class="photo-slot report-figure">
+    <div class="photo-grid photo-grid--pair">
+      <div class="figure-panel">
+        <div class="photo-canvas"><a href="./images/partb/harris.webp"><img src="./images/partb/harris.webp" width="1050" height="1400" alt="Harris corners cluster along the atrium railings and wooden slats" loading="lazy"></a></div>
+        <p class="panel-label">Harris · 2,258 corners</p>
+      </div>
+      <div class="figure-panel">
+        <div class="photo-canvas"><a href="./images/partb/anms.webp"><img src="./images/partb/anms.webp" width="1050" height="1400" alt="The same atrium with 800 surviving corners marked" loading="lazy"></a></div>
+        <p class="panel-label">After ANMS · 800 corners</p>
+      </div>
+    </div>
+    <figcaption><span class="caption-label">Figure 16. Corner selection on IMG_8231.</span> The smooth ceiling has few corners in either image. The largest reduction is along the repeated edges.</figcaption>
+  </figure>
+</section>
+
+<section class="report-section" id="part-b2" aria-labelledby="part-b2-heading">
+  <h2 id="part-b2-heading">B.2 Describe each corner</h2>
+  <p>Around each corner I took a 40 × 40 patch from the blurred grayscale photo. Averaging each 5 × 5 block gave me an 8 × 8 descriptor. I subtracted the descriptor’s mean and divided by its standard deviation so the same edge pattern could match across changes in brightness and contrast.</p>
+  <figure class="photo-slot report-figure">
+    <div class="photo-canvas"><a href="./images/partb/descriptors.png"><img src="./images/partb/descriptors.png" width="712" height="232" alt="Six enlarged atrium patches, each above its normalized 8 by 8 grayscale descriptor" loading="lazy"></a></div>
+    <figcaption><span class="caption-label">Figure 17. From photo patches to descriptors.</span> Each color crop sits above its descriptor. Middle gray marks the mean. Black and white are 2.5 standard deviations below and above it.</figcaption>
+  </figure>
+</section>
+
+<section class="report-section" id="part-b3" aria-labelledby="part-b3-heading">
+  <h2 id="part-b3-heading">B.3 Match features between views</h2>
+  <p>A railing bar can look like several others in the next photo. I kept a match only if both descriptors were each other’s nearest neighbor and the closest reference descriptor was less than 0.8 times as far away as the second closest. I used Euclidean distance between the 8 × 8 patches.</p>
+  <figure class="photo-slot report-figure">
+    <div class="photo-canvas"><a href="./images/partb/atrium_left_matches.webp"><img src="./images/partb/atrium_left_matches.webp" width="1132" height="747" alt="Lines connect proposed corner matches between the left and central atrium photographs" loading="lazy"></a></div>
+    <figcaption><span class="caption-label">Figure 18. Atrium matches from IMG_8230 to IMG_8231.</span> The lines show 25 of 119 proposed matches. Green marks RANSAC inliers and coral marks rejected matches.</figcaption>
+  </figure>
+</section>
+
+<section class="report-section" id="part-b4" aria-labelledby="part-b4-heading">
+  <h2 id="part-b4-heading">B.4 Fit homographies and compare mosaics</h2>
+  <p>For each RANSAC trial I drew four matches and fit a homography with the Part A solver, skipping samples with three nearly collinear points in either view. I counted a match as an inlier if its projected point landed within four pixels of its partner. I refit the best-supported homography on its inliers and stitched the mosaic with the Part A blend.</p>
+  <div class="scroll-wrapper" role="region" aria-label="Automatic matching results" tabindex="0">
+    <table class="capture-table">
+      <caption>Select a photo pair to see its matches. Error is the median reprojection distance among inliers, in reference-image pixels.</caption>
+      <thead><tr><th scope="col">Source → reference</th><th scope="col">Matches</th><th scope="col">Inliers</th><th scope="col">Error (px)</th></tr></thead>
+      <tbody>
+        <tr><th scope="row"><a href="./images/partb/atrium_left_matches.webp">8230 → 8231</a></th><td>119</td><td>65</td><td>1.37</td></tr>
+        <tr><th scope="row"><a href="./images/partb/atrium_right_matches.webp">8232 → 8231</a></th><td>74</td><td>41</td><td>1.19</td></tr>
+        <tr><th scope="row"><a href="./images/partb/courtyard_left_matches.webp">8237 → 8236</a></th><td>126</td><td>103</td><td>1.27</td></tr>
+        <tr><th scope="row"><a href="./images/partb/courtyard_right_matches.webp">8235 → 8236</a></th><td>368</td><td>359</td><td>1.05</td></tr>
+        <tr><th scope="row"><a href="./images/partb/skyline_left_matches.webp">8240 → 8239</a></th><td>527</td><td>515</td><td>1.39</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3>Atrium</h3>
+  <figure class="photo-slot report-figure">
+    <div class="photo-grid photo-grid--pair">
+      <div class="figure-panel">
+        <div class="photo-canvas"><a href="./images/atrium_mosaic.webp"><img src="./images/atrium_mosaic.webp" width="2400" height="1927" alt="Atrium stitched from manually selected landmarks" loading="lazy"></a></div>
+        <p class="panel-label">Manual</p>
+      </div>
+      <div class="figure-panel">
+        <div class="photo-canvas"><a href="./images/partb/atrium_auto.webp"><img src="./images/partb/atrium_auto.webp" width="3798" height="2844" alt="Automatically stitched atrium with a wider left edge" loading="lazy"></a></div>
+        <p class="panel-label">Automatic</p>
+      </div>
+    </div>
+    <figcaption><span class="caption-label">Figure 19. Atrium.</span> The automatic fit stretches the left edge of the atrium. Its canvas is 3,798 pixels wide, compared with 3,437 for the manual fit.</figcaption>
+  </figure>
+  <h3>Courtyard</h3>
+  <figure class="photo-slot report-figure">
+    <div class="photo-grid photo-grid--pair">
+      <div class="figure-panel">
+        <div class="photo-canvas"><a href="./images/courtyard_mosaic.webp"><img src="./images/courtyard_mosaic.webp" width="2400" height="2120" alt="Manual courtyard mosaic showing the curved glass facade" loading="lazy"></a></div>
+        <p class="panel-label">Manual</p>
+      </div>
+      <div class="figure-panel">
+        <div class="photo-canvas"><a href="./images/partb/courtyard_auto.webp"><img src="./images/partb/courtyard_auto.webp" width="2681" height="2334" alt="Automatic courtyard mosaic showing continuous rows of windows across the three views" loading="lazy"></a></div>
+        <p class="panel-label">Automatic</p>
+      </div>
+    </div>
+    <figcaption><span class="caption-label">Figure 20. Courtyard.</span> The rows of windows follow a continuous curve in both mosaics, and the path across the lawn lines up across views.</figcaption>
+  </figure>
+  <h3>Skyline</h3>
+  <figure class="photo-slot report-figure">
+    <div class="photo-grid photo-grid--pair">
+      <div class="figure-panel">
+        <div class="photo-canvas"><a href="./images/skyline_mosaic.webp"><img src="./images/skyline_mosaic.webp" width="1296" height="1579" alt="Manually aligned night skyline and foreground rooftops" loading="lazy"></a></div>
+        <p class="panel-label">Manual</p>
+      </div>
+      <div class="figure-panel">
+        <div class="photo-canvas"><a href="./images/partb/skyline_auto.webp"><img src="./images/partb/skyline_auto.webp" width="1297" height="1577" alt="Automatically aligned skyline with nearly identical framing" loading="lazy"></a></div>
+        <p class="panel-label">Automatic</p>
+      </div>
+    </div>
+    <figcaption><span class="caption-label">Figure 21. Skyline.</span> The crane and foreground roof align in both versions. Their canvas widths differ by one pixel.</figcaption>
+  </figure>
+</section>
+
 <section class="report-section" id="reflection" aria-labelledby="reflection-heading">
   <h2 id="reflection-heading">What I learned</h2>
-  <p>It was super cool to learn how to make mosaics and understand the difficulties involved. The atrium’s doubled railings are visible even when the selected landmarks line up closely. Rectifying the sign also showed the trade-off between nearest neighbor and bilinear sampling: bilinear makes the text smoother, but it cannot restore detail missing from the original photo.</p>
+  <p>The railing still looks doubled where the atrium photos overlap. I checked the automatic fit against landmarks I had picked by hand. In the right atrium view, the automatic inliers had a median error of 1.19 pixels. On my hand-picked landmarks the same transform missed by a median of 4.86 pixels. For the courtyard and skyline pairs, the medians on hand-picked points were 1.43–1.65 pixels.</p>
 </section>
 
 <section class="report-section" id="references" aria-labelledby="references-heading">
   <h2 id="references-heading">References and image credits</h2>
   <ol class="references">
     <li>All photographs by Bryan Li.</li>
+    <li>Matthew Brown, Richard Szeliski, and Simon Winder. <a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2005/06/cvpr05.pdf">Multi-Image Matching using Multi-Scale Oriented Patches</a>. CVPR, 2005.</li>
+    <li>UC Berkeley CS 180. <a href="https://cal-cs180.github.io/fa26/hw/proj3/partB.html">Feature Matching for Autostitching</a>.</li>
   </ol>
 </section>
 </main>
 <footer class="document-footer">
-  <p>Bryan Li · CS 180 · Project 4, Part A</p>
+  <p>Bryan Li · CS 180 · Project 4, Parts A and B</p>
   <p class="no-print"><a href="../index.html">Return to portfolio</a></p>
 </footer>
 </body>
